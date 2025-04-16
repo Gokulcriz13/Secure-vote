@@ -2,21 +2,38 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { getAuth, RecaptchaVerifier, signInWithPhoneNumber, type ConfirmationResult } from "firebase/auth";
+import { RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
+import { auth } from "@/lib/firebase";
+import sha256 from "crypto-js/sha256";
 
 export default function OTPVerification() {
   const [otp, setOtp] = useState("");
-  const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
+  const [confirmationResult, setConfirmationResult] = useState<any>(null);
+  const [otuHash, setOtuHash] = useState<string>("");
   const searchParams = useSearchParams();
   const router = useRouter();
- 
+
   const phone = searchParams?.get("phone") ?? "";
   const aadhaar = searchParams?.get("aadhaar") ?? "";
   const voterId = searchParams?.get("voterId") ?? "";
 
+  // Generate a one-time URL and hash it with SHA-256
   useEffect(() => {
-    const auth = getAuth();
+    if (aadhaar && voterId) {
+      const rawOTU = `${aadhaar}-${voterId}-${Date.now()}`;
+      const hashedOTU = sha256(rawOTU).toString();
+      setOtuHash(hashedOTU);
 
+      // Optionally store the hashed OTU to backend MySQL for validation and vote confirmation
+      fetch("/api/store-otu", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ aadhaar, voterId, otu: hashedOTU }),
+      });
+    }
+  }, [aadhaar, voterId]);
+
+  useEffect(() => {
     if (phone && !(window as any).recaptchaVerifier) {
       (window as any).recaptchaVerifier = new RecaptchaVerifier(
         auth,
@@ -51,7 +68,7 @@ export default function OTPVerification() {
     try {
       const result = await confirmationResult.confirm(otp);
       console.log("OTP verified successfully:", result.user);
-      router.push(`/details?aadhaar=${aadhaar}&voter_id=${voterId}`);
+      router.push(`/details?aadhaar=${aadhaar}&voter_id=${voterId}&otu=${otuHash}`);
     } catch (error) {
       console.error("OTP verification failed:", error);
       alert("Invalid OTP. Please try again.");

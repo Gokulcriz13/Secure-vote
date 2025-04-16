@@ -8,7 +8,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const [rows]: any = await db.query(
-      'SELECT * FROM users WHERE aadhaar = ? AND voter_id = ?',
+      'SELECT * FROM voters WHERE aadhaar = ? AND voter_id = ?',
       [aadhaar, voterId]
     );
 
