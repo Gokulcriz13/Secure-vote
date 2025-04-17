@@ -14,7 +14,7 @@ export default function LandingPage() {
           and transparency for every voter.
         </p>
         <button
-          onClick={() => router.push("/verify")}
+          onClick={() => router.push("/authenticate")}
           className="bg-[#D84040] text-white py-3 px-6 rounded-lg text-lg hover:bg-[#8E1616] transition-transform hover:scale-105"
         >
           Get Started
