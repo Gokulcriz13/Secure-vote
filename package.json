@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "crypto": "^1.0.1",
     "date-fns": "^4.1.0",
     "firebase": "^11.6.0",
     "mysql2": "^3.14.0",

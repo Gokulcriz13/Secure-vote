@@ -1,15 +1,24 @@
-import { initializeApp } from "firebase/app";
+// lib/firebase.ts
+
+// Import required Firebase functions
+import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 
+// Firebase config from your project
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY!,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN!,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID!,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET!,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID!,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID!,
-  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
+  apiKey: "AIzaSyCRxEUH2idOh17c9KCOgHKzXca-4JoKSLQ",
+  authDomain: "remote-voting-76822.firebaseapp.com",
+  projectId: "remote-voting-76822",
+  storageBucket: "remote-voting-76822.firebasestorage.app",
+  messagingSenderId: "766414828891",
+  appId: "1:766414828891:web:bb28c28294589c1881567e",
+  measurementId: "G-6K9KFBBFDE",
 };
 
-const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
+// Initialize Firebase app once
+const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+
+// Get Firebase Auth instance
+const auth = getAuth(app);
+
+export { auth, app };

@@ -1,7 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { db } from '@/lib/mysql'; // your MySQL connection
 import { generateOtp } from '@/lib/utils/generateOTP';
-import { addMinutes } from "date-fns";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ success: false, error: 'Method not allowed' });

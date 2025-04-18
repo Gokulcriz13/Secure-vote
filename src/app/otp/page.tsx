@@ -12,7 +12,7 @@ export default function OTPVerification() {
   const [otuHash, setOtuHash] = useState<string>("");
   const searchParams = useSearchParams();
   const router = useRouter();
-
+  const [countdown, setCountdown] = useState(60);
   const phone = searchParams?.get("phone") ?? "";
   const aadhaar = searchParams?.get("aadhaar") ?? "";
   const voterId = searchParams?.get("voterId") ?? "";
@@ -34,28 +34,54 @@ export default function OTPVerification() {
   }, [aadhaar, voterId]);
 
   useEffect(() => {
-    if (phone && !(window as any).recaptchaVerifier) {
-      (window as any).recaptchaVerifier = new RecaptchaVerifier(
-        auth,
-        "recaptcha-container",
-        {
-          size: "invisible",
-          callback: (response: any) => {
-            console.log("Recaptcha resolved:", response);
+    const initRecaptchaAndSendOTP = async () => {
+      if (phone && !(window as any).recaptchaVerifier) {
+        const recaptchaVerifier = new RecaptchaVerifier(
+          auth,
+          "recaptcha-container",
+          {
+            size: "invisible",
+            callback: () => {
+              console.log("reCAPTCHA verified");
+            },
           },
-        },
-      );
+        );
 
-      signInWithPhoneNumber(auth, `+91${phone}`, (window as any).recaptchaVerifier)
-        .then((result) => {
-          setConfirmationResult(result);
+        (window as any).recaptchaVerifier = recaptchaVerifier;
+
+        try {
+          await recaptchaVerifier.verify();
+
+          const confirmation = await signInWithPhoneNumber(
+            auth,
+            `+91${phone}`,
+            recaptchaVerifier
+          );
+
+          setConfirmationResult(confirmation);
           console.log("OTP sent successfully");
-        })
-        .catch((error) => {
-          console.error("Error sending OTP:", error);
-        });
-    }
+        } catch (error) {
+          console.error("Error during reCAPTCHA or OTP send:", error);
+        }
+      }
+    };
+
+    initRecaptchaAndSendOTP();
   }, [phone]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
 
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -94,6 +120,10 @@ export default function OTPVerification() {
           required
         />
 
+        <p className="text-sm text-gray-600 mb-4 text-center">
+          Time remaining: <span className="font-bold">{countdown}s</span>
+        </p>
+
         <button
           type="submit"
           className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition"
@@ -101,8 +131,7 @@ export default function OTPVerification() {
           Verify OTP
         </button>
 
-        {/* Hidden div for reCAPTCHA */}
-        <div id="recaptcha-container"></div>
+        <div id="recaptcha-container" />
       </form>
     </div>
   );
