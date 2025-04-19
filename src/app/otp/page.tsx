@@ -102,37 +102,86 @@ export default function OTPVerification() {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-200 to-blue-500">
-      <form onSubmit={handleVerifyOtp} className="bg-white p-8 rounded-xl shadow-xl max-w-md w-full">
-        <h1 className="text-2xl font-bold text-center text-blue-600 mb-6">OTP Verification</h1>
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800">
+      <div className="container mx-auto px-4 py-16">
+        <div className="max-w-md mx-auto">
+          <div className="text-center mb-8">
+            <h1 className="text-4xl font-bold text-white mb-2">OTP Verification</h1>
+            <p className="text-gray-400">
+              Enter the 6-digit code sent to your registered mobile number
+            </p>
+            <p className="text-gray-400 mt-2">
+              {phone ? `+91 ${phone.slice(0, 3)} ${phone.slice(3, 6)} ${phone.slice(6)}` : ""}
+            </p>
+          </div>
 
-        <p className="text-sm text-gray-600 mb-4 text-center">
-          OTP has been sent to your registered mobile number.
-        </p>
+          <form onSubmit={handleVerifyOtp} className="space-y-6">
+            <div className="flex justify-center gap-2">
+              {[...Array(6)].map((_, index) => (
+                <input
+                  key={index}
+                  type="text"
+                  maxLength={1}
+                  value={otp[index] || ""}
+                  onChange={(e) => {
+                    const newOtp = otp.split("");
+                    newOtp[index] = e.target.value;
+                    setOtp(newOtp.join(""));
+                    if (e.target.value && index < 5) {
+                      const nextInput = e.target.nextElementSibling as HTMLInputElement;
+                      if (nextInput) nextInput.focus();
+                    }
+                  }}
+                  className="w-12 h-12 text-center text-2xl bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  required
+                />
+              ))}
+            </div>
 
-        <input
-          type="text"
-          placeholder="Enter OTP"
-          value={otp}
-          onChange={(e) => setOtp(e.target.value)}
-          maxLength={6}
-          className="w-full p-3 border border-gray-300 rounded-lg mb-4 focus:outline-none focus:ring-4 focus:ring-blue-300"
-          required
-        />
+            <div className="text-center">
+              <p className="text-gray-400">
+                {countdown > 0 ? (
+                  <>OTP expires in <span className="text-blue-400">{countdown}s</span></>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => window.location.reload()}
+                    className="text-blue-400 hover:text-blue-300 transition-colors"
+                  >
+                    Resend OTP
+                  </button>
+                )}
+              </p>
+            </div>
 
-        <p className="text-sm text-gray-600 mb-4 text-center">
-          Time remaining: <span className="font-bold">{countdown}s</span>
-        </p>
+            <button
+              type="submit"
+              className="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900"
+            >
+              Verify OTP
+            </button>
 
-        <button
-          type="submit"
-          className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition"
-        >
-          Verify OTP
-        </button>
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={() => router.push("/authenticate")}
+                className="text-gray-400 hover:text-gray-300 text-sm transition-colors"
+              >
+                Back to Authentication
+              </button>
+            </div>
+          </form>
 
-        <div id="recaptcha-container" />
-      </form>
+          <div className="mt-8 p-4 bg-gray-800/50 rounded-lg">
+            <h3 className="text-blue-400 font-semibold mb-2">Security Information</h3>
+            <p className="text-gray-400 text-sm">
+              The OTP is valid for 60 seconds. Do not share this code with anyone.
+            </p>
+          </div>
+
+          <div id="recaptcha-container" className="hidden"></div>
+        </div>
+      </div>
     </div>
   );
-}
+} 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 
 type Voter = {
   name: string;
@@ -12,11 +12,13 @@ type Voter = {
   gender: string;
   dob: string;
   photo: string;
-  otu: string;
-};
+  otu?: string;
+  hashed_otu: string;
+}
 
 export default function VoterDetailsPage() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const aadhaar = searchParams?.get("aadhaar") ?? "";
   const voterId = searchParams?.get("voter_id") ?? "";
   const [voter, setVoter] = useState<Voter | null>(null);
@@ -36,40 +38,94 @@ export default function VoterDetailsPage() {
     }
   }, [aadhaar, voterId]);
 
-  if (!voter) return <p className="text-center mt-20">Loading voter details...</p>;
+  if (!voter) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-blue-400 text-xl">Loading voter details...</div>
+          <div className="mt-4 w-12 h-12 border-4 border-blue-400 border-t-transparent rounded-full animate-spin mx-auto"></div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="max-w-xl mx-auto mt-10 bg-white shadow-lg rounded-xl p-6 text-gray-800">
-      <h1 className="text-3xl font-bold mb-6 text-center text-blue-600">Voter Details</h1>
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800">
+      <div className="container mx-auto px-4 py-16">
+        <div className="max-w-2xl mx-auto">
+          <div className="text-center mb-8">
+            <h1 className="text-4xl font-bold text-white mb-2">Voter Details</h1>
+            <p className="text-gray-400">Please verify your information before proceeding</p>
+          </div>
 
-      <div className="flex flex-col items-center mb-6">
-        {voter.photo && (
-          <img
-            src={`data:image/jpeg;base64,${voter.photo}`}
-            alt="Voter Photo"
-            className="w-32 h-32 rounded-full object-cover border-4 border-blue-500"
-          />
-        )}
-      </div>
+          <div className="bg-gray-800 rounded-xl p-8 space-y-8">
+            {/* Profile Section */}
+            <div className="flex flex-col items-center">
+              {voter.photo && (
+                <div className="relative">
+                  <img
+                    src={`data:image/jpeg;base64,${voter.photo}`}
+                    alt="Voter Photo"
+                    className="w-32 h-32 rounded-full object-cover border-4 border-blue-500"
+                  />
+                  <div className="absolute -bottom-2 -right-2 bg-blue-500 text-white rounded-full p-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                </div>
+              )}
+              <h2 className="text-2xl font-semibold text-white mt-4">{voter.name}</h2>
+              <p className="text-gray-400">{voter.gender} • {voter.dob}</p>
+            </div>
 
-      <div className="space-y-2 text-lg">
-        <p><strong>Name:</strong> {voter.name}</p>
-        <p><strong>Aadhaar:</strong> {voter.aadhaar}</p>
-        <p><strong>Voter ID:</strong> {voter.voter_id}</p>
-        <p><strong>Phone:</strong> +91-{voter.phone}</p>
-        <p><strong>Gender:</strong> {voter.gender}</p>
-        <p><strong>Date of Birth:</strong> {voter.dob}</p>
-        <p><strong>Address:</strong> {voter.address}</p>
-        <p><strong>One-Time Passkey:</strong> <code className="text-blue-600 break-words">{voter.otu}</code></p>
-      </div>
+            {/* Details Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="bg-gray-700/50 p-4 rounded-lg">
+                <h3 className="text-blue-400 font-semibold mb-2">Identification</h3>
+                <div className="space-y-2 text-gray-300">
+                  <p><span className="text-gray-400">Aadhaar:</span> {voter.aadhaar}</p>
+                  <p><span className="text-gray-400">Voter ID:</span> {voter.voter_id}</p>
+                </div>
+              </div>
 
-      <div className="mt-6 text-center">
-        <a
-          href={`/vote?otu=${voter.otu}`}
-          className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition"
-        >
-          Proceed to Vote
-        </a>
+              <div className="bg-gray-700/50 p-4 rounded-lg">
+                <h3 className="text-blue-400 font-semibold mb-2">Contact</h3>
+                <div className="space-y-2 text-gray-300">
+                  <p><span className="text-gray-400">Phone:</span> +91-{voter.phone}</p>
+                  <p><span className="text-gray-400">Address:</span> {voter.address}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Security Info */}
+            <div className="bg-gray-700/50 p-4 rounded-lg">
+              <h3 className="text-blue-400 font-semibold mb-2">Security Status</h3>
+              <div className="flex items-center space-x-2 text-gray-300">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                <span>Identity verified and secured</span>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex flex-col sm:flex-row gap-4">
+              <button
+                onClick={() => router.push(`/face-capture?otu=${encodeURIComponent(voter.hashed_otu)}`)}
+                className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800"
+              >
+                Continue to Vote
+              </button>
+              <button
+                onClick={() => router.push("/authenticate")}
+                className="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-300"
+              >
+                Back to Authentication
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -1,0 +1,154 @@
+ Project Title: Secure Blockchain-Based Remote Voting System
+🔍 Project Overview:
+This project is a next-generation online voting system built to ensure secure, transparent, and verifiable remote voting, particularly for citizens who are unable to vote in their allocated constituency. It leverages multi-factor authentication, AI-powered facial recognition, OTP-based identity validation, and blockchain technology for tamper-proof vote recording.
+
+🔐 Key Features & Functionalities:
+Voter Authentication:
+
+Verifies Aadhaar and Voter ID with MySQL database.
+
+Uses Firebase Authentication to send OTP to registered phone number.
+
+Voter OTP stored with expiry (1 min) and validated.
+
+Secure One-Time URL (OTU):
+
+OTU is generated and hashed using SHA-256.
+
+Stored in MySQL with expiry (10 minutes).
+
+Used for navigation to face-capture & voting page.
+
+Hashed OTU's private key used for final vote confirmation.
+
+Facial Recognition:
+
+Real-time camera input captures face.
+
+Uses pre-trained models (face-api.js) to compare with voter photo in database.
+
+Prevents impersonation.
+
+AI-Powered Voter Monitoring:
+
+Detects multiple faces or suspicious behavior using models like YOLO.
+
+Alerts admin and blocks voting UI if fraud is detected.
+
+Blockchain Vote Recording:
+
+Votes are securely stored in Polygon (Ethereum Layer 2) blockchain.
+
+IPFS is optionally used for decentralized vote storage.
+
+Ensures tamper-proof auditability and transparency.
+
+Vote Confirmation:
+
+If biometric (fingerprint) fails, hashed OTU's private key is used as a passkey for vote confirmation.
+
+Admin Monitoring Dashboard:
+
+Real-time tracking of votes.
+
+Alerts based on AI and logs via blockchain and local DB.
+
+⚙️ Technical Stack:
+🎨 Frontend:
+Framework: Next.js (App Router, TypeScript)
+
+Styling: Tailwind CSS
+
+Routing: Next Router (useRouter, useSearchParams)
+
+Realtime Input: HTML5 Video API
+
+Face Recognition: face-api.js
+
+Countdown Timer: Custom state-based timer
+
+🧠 AI/ML:
+Facial Verification: face-api.js
+
+Models Used:
+
+ssd_mobilenetv1
+
+face_landmark_68
+
+face_recognition_model
+
+Anomaly Detection (optional): YOLOv8, TensorFlow.js
+
+🔐 Authentication:
+Primary: Aadhaar + Voter ID match via MySQL
+
+Secondary: Firebase OTP via registered phone
+
+Tertiary: Facial Recognition & Fingerprint or Passkey (OTU hash)
+
+💾 Database:
+Relational DB: MySQL (voters table)
+
+Schema Includes:
+
+Aadhaar, Voter ID
+
+Phone, DOB, Gender
+
+Photo (LONGBLOB)
+
+OTP, OTU, Timestamp
+
+🔒 Blockchain:
+Platform: Polygon (EVM-compatible)
+
+Smart Contracts: Solidity
+
+Vote Recording: Hashed vote with metadata
+
+Ledger Access: ethers.js or web3.js
+
+🔧 Backend:
+Server Runtime: Node.js with Next.js API Routes
+
+Database ORM: mysql2/promise (pooled)
+
+OTP Expiry: 1 min (MySQL timestamp check)
+
+OTU Expiry: 10 min (DB + hash match)
+
+☁️ Hosting & APIs:
+Firebase: For OTP (test mode or production with billing)
+
+Recaptcha V2: Invisible challenge for security
+
+Deployment: Vercel / Firebase Hosting (for production)
+
+📁 Major Project Folders:
+bash
+Copy
+Edit
+secure-voting/
+├── src/
+│   ├── app/
+│   │   ├── page.tsx                # Landing page
+│   │   ├── authenticate/page.tsx   # Aadhaar & Voter ID entry
+│   │   ├── otp/page.tsx            # OTP verification
+│   │   ├── details/page.tsx        # Voter details & OTU
+│   │   ├── face-capture/page.tsx   # Face recognition page
+│   │   ├── vote/page.tsx           # Voting UI
+│   ├── pages/api/
+│   │   ├── verify-user.ts          # Checks Aadhaar & Voter ID
+│   │   ├── generate-otp.ts         # Creates & stores OTP
+│   │   ├── store-otu.ts            # Stores OTU (SHA-256 hash)
+│   │   ├── validate-otu.ts         # Validates and nullifies OTU
+│   │   ├── fetch-voter.ts          # Returns voter details
+│   ├── lib/
+│   │   ├── firebase.ts             # Firebase config
+│   │   ├── mysql.ts                # MySQL DB connection
+│   │   ├── utils/
+│   │   │   └── generateOTP.ts      # Random OTP generator
+├── public/
+│   └── models/                     # face-api.js models
+├── .env                            # MySQL & Firebase secrets

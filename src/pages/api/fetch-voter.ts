@@ -1,43 +1,57 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { db } from "@/lib/mysql"; // Make sure mysql.ts exports db = createPool(...)
+import crypto from "crypto";
+import { db } from "@/lib/mysql"; // Import the db pool from utils/mysql.ts
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
-    return res.status(405).json({ success: false, error: "Method not allowed" });
+    return res.status(405).json({ success: false, message: "Method Not Allowed" });
   }
 
   const { aadhaar, voterId } = req.body;
 
   if (!aadhaar || !voterId) {
-    return res.status(400).json({ success: false, error: "Missing Aadhaar or Voter ID" });
+    return res.status(400).json({ success: false, message: "Missing Aadhaar or Voter ID" });
   }
 
   try {
-    const [rows]: any = await db.query(
-      "SELECT name, aadhaar, voter_id, phone, address, gender, dob, photo, otu FROM voters WHERE aadhaar = ? AND voter_id = ?",
+    // Use the db pool to execute the query
+    const [rows] = await db.execute<any[]>(`
+      SELECT name, aadhaar, voter_id, phone, address, gender, dob, photo, otu, vote_confirm_key
+      FROM voters WHERE aadhaar = ? AND voter_id = ?`,
       [aadhaar, voterId]
     );
 
-    if (rows.length === 0) {
-      return res.status(404).json({ success: false, error: "Voter not found" });
+    const voter = rows[0]; 
+
+    if ((rows as any[]).length === 0) {
+      return res.status(404).json({ success: false, message: "Voter not found" });
     }
 
-    const voter = rows[0];
+    const createdAt = new Date(voter.otu_created_at);
+    const now = new Date();
+    const diffMinutes = (now.getTime() - createdAt.getTime()) / (1000 * 60);
 
-    // Convert image blob to base64 string for rendering
-    const base64Photo = voter.photo
-      ? Buffer.from(voter.photo).toString("base64")
-      : null;
+    if (diffMinutes > 10) {
+      return res.status(403).json({ success: false, message: "OTU expired. Please re-authenticate." });
+    }
 
-    return res.status(200).json({
+    if (voter.otu_used) {
+      return res.status(403).json({ success: false, message: "OTU already used." });
+    }
+
+    const hashedOtu = crypto.createHash("sha256").update(voter.otu).digest("hex");
+
+    res.status(200).json({
       success: true,
       voter: {
         ...voter,
-        photo: base64Photo,
+        photo: voter.photo?.toString("base64") ?? null,
+        otu: undefined,
+        hashed_otu: hashedOtu,
       },
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error("Database error:", error);
-    return res.status(500).json({ success: false, error: "Internal Server Error" });
+    res.status(500).json({ success: false, message: "Server error" });
   }
 }
