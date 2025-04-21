@@ -2,49 +2,48 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import * as faceapi from "face-api.js";
+import { loadClientModels, detectFace, storeFaceDescriptor } from "@/lib/client/face-detection";
 
 export default function FaceCapturePage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isDetecting, setIsDetecting] = useState(false);
-  const [detectionStatus, setDetectionStatus] = useState<string>("");
+  const [isModelLoading, setIsModelLoading] = useState(true);
+  const [detectionStatus, setDetectionStatus] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
-  const otu = searchParams?.get("otu") ?? "";
+  const otu = searchParams?.get("otu");
 
   useEffect(() => {
-    const loadModels = async () => {
+    if (!otu) {
+      router.push("/");
+      return;
+    }
+
+    const initFaceDetection = async () => {
       try {
         setDetectionStatus("Loading face detection models...");
-        const MODEL_URL = '/models';
-        
-        await Promise.all([
-          faceapi.nets.ssdMobilenetv1.load(MODEL_URL),
-          faceapi.nets.faceLandmark68Net.load(MODEL_URL),
-          faceapi.nets.faceRecognitionNet.load(MODEL_URL)
-        ]);
-
-        setIsLoading(false);
-        setDetectionStatus("Models loaded successfully. Starting camera...");
+        await loadClientModels();
+        setIsModelLoading(false);
+        setDetectionStatus("Starting camera...");
         await startVideo();
+        setDetectionStatus("Ready for face detection");
       } catch (error) {
-        console.error("Error loading models:", error);
-        setDetectionStatus("Error loading face detection models. Please refresh the page.");
+        console.error("Failed to initialize face detection:", error);
+        setDetectionStatus("Error loading models. Please refresh the page.");
       }
     };
 
-    loadModels();
+    initFaceDetection();
 
     // Cleanup function
     return () => {
-      if (videoRef.current && videoRef.current.srcObject) {
-        const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
-        tracks.forEach(track => track.stop());
+      if (videoRef.current?.srcObject) {
+        const stream = videoRef.current.srcObject as MediaStream;
+        stream.getTracks().forEach(track => track.stop());
       }
     };
-  }, []);
+  }, [otu, router]);
 
   const startVideo = async () => {
     try {
@@ -55,129 +54,82 @@ export default function FaceCapturePage() {
           facingMode: "user"
         } 
       });
-      
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        setDetectionStatus("Camera started. Please position your face in the frame.");
       }
     } catch (error) {
       console.error("Error accessing camera:", error);
-      setDetectionStatus("Error accessing camera. Please ensure camera permissions are granted.");
+      setDetectionStatus("Error accessing camera. Please check permissions.");
+      throw error;
     }
   };
 
   const handleFaceDetection = async () => {
-    if (!videoRef.current || !canvasRef.current) return;
+    if (!videoRef.current || isProcessing) return;
 
-    setIsDetecting(true);
-    setDetectionStatus("Detecting face...");
+    setIsProcessing(true);
+    setDetectionStatus("Processing...");
 
     try {
-      const detections = await faceapi
-        .detectSingleFace(videoRef.current)
-        .withFaceLandmarks()
-        .withFaceDescriptor();
-
-      if (detections) {
-        setDetectionStatus("Face detected! Verifying...");
-        
-        // Draw the detections
-        const displaySize = { width: videoRef.current.width, height: videoRef.current.height };
-        faceapi.matchDimensions(canvasRef.current, displaySize);
-        const resizedDetections = faceapi.resizeResults(detections, displaySize);
-        
-        const ctx = canvasRef.current.getContext('2d');
-        ctx?.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-        faceapi.draw.drawDetections(canvasRef.current, resizedDetections);
-        faceapi.draw.drawFaceLandmarks(canvasRef.current, resizedDetections);
-
-        // Here you would typically compare with stored face data
-        // For now, we'll simulate a successful verification
-        setTimeout(() => {
-          router.push(`/vote?otu=${otu}`);
-        }, 2000);
-      } else {
-        setDetectionStatus("No face detected. Please ensure your face is clearly visible.");
-      }
+      const detection = await detectFace(videoRef.current);
+      storeFaceDescriptor(detection.descriptor);
+      setDetectionStatus("Face detected successfully!");
+      router.push(`/vote?otu=${otu}`);
     } catch (error) {
-      console.error("Face detection error:", error);
-      setDetectionStatus("Error during face detection. Please try again.");
+      console.error("Error during face detection:", error);
+      setDetectionStatus(
+        error instanceof Error 
+          ? error.message 
+          : "Error during face detection. Please try again."
+      );
     } finally {
-      setIsDetecting(false);
+      setIsProcessing(false);
     }
   };
 
+  if (isModelLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-blue-400 text-xl">{detectionStatus}</div>
+          <div className="mt-4 w-12 h-12 border-4 border-blue-400 border-t-transparent rounded-full animate-spin mx-auto"></div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800">
-      <div className="container mx-auto px-4 py-16">
-        <div className="max-w-4xl mx-auto">
+      <div className="container mx-auto px-4 py-8">
+        <div className="max-w-2xl mx-auto">
           <div className="text-center mb-8">
             <h1 className="text-4xl font-bold text-white mb-2">Face Verification</h1>
-            <p className="text-gray-400">
-              Please position your face in the frame for verification
-            </p>
+            <p className="text-gray-400">Please position your face in the camera frame</p>
           </div>
 
-          <div className="relative bg-gray-800 rounded-xl overflow-hidden aspect-video max-w-2xl mx-auto">
+          <div className="relative aspect-video bg-black rounded-xl overflow-hidden mb-6">
             <video
               ref={videoRef}
               autoPlay
               playsInline
               muted
-              width={1280}
-              height={720}
-              className="w-full h-full object-cover"
+              className="absolute inset-0 w-full h-full object-cover"
             />
-            <canvas
-              ref={canvasRef}
-              className="absolute top-0 left-0 w-full h-full"
-              width={1280}
-              height={720}
-            />
+            <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
           </div>
 
-          <div className="mt-8 text-center">
-            {isLoading ? (
-              <div className="flex items-center justify-center space-x-3">
-                <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                <div className="text-blue-400">{detectionStatus}</div>
-              </div>
-            ) : (
-              <>
-                <button
-                  onClick={handleFaceDetection}
-                  disabled={isDetecting}
-                  className={`px-8 py-3 rounded-lg font-semibold transition-all duration-300 ${
-                    isDetecting
-                      ? "bg-gray-600 cursor-not-allowed"
-                      : "bg-blue-500 hover:bg-blue-600 transform hover:scale-105"
-                  }`}
-                >
-                  {isDetecting ? "Verifying..." : "Start Verification"}
-                </button>
-                {detectionStatus && (
-                  <p className="mt-4 text-gray-300">{detectionStatus}</p>
-                )}
-              </>
-            )}
-          </div>
-
-          <div className="mt-8 p-4 bg-gray-800/50 rounded-lg">
-            <h3 className="text-blue-400 font-semibold mb-2">Instructions</h3>
-            <ul className="text-gray-400 text-sm space-y-2">
-              <li>• Ensure good lighting conditions</li>
-              <li>• Remove any face coverings</li>
-              <li>• Look directly at the camera</li>
-              <li>• Keep your face within the frame</li>
-            </ul>
-          </div>
-
-          <div className="text-center mt-8">
+          <div className="text-center space-y-4">
+            <p className="text-lg text-blue-400">{detectionStatus}</p>
             <button
-              onClick={() => router.push("/details")}
-              className="text-gray-400 hover:text-gray-300 text-sm transition-colors"
+              onClick={handleFaceDetection}
+              disabled={isProcessing}
+              className={`px-8 py-3 rounded-full text-white font-semibold ${
+                isProcessing
+                  ? "bg-gray-600 cursor-not-allowed"
+                  : "bg-blue-600 hover:bg-blue-700"
+              }`}
             >
-              Back to Details
+              {isProcessing ? "Processing..." : "Verify Face"}
             </button>
           </div>
         </div>

@@ -1,83 +1,61 @@
-const https = require('https');
 const fs = require('fs');
 const path = require('path');
+const https = require('https');
 
-const models = [
-  {
-    name: 'face_recognition_model',
-    files: [
-      'face_recognition_model-weights_manifest.json',
-      'face_recognition_model-shard1'
-    ]
-  },
-  {
-    name: 'face_landmark_68_model',
-    files: [
-      'face_landmark_68_model-weights_manifest.json',
-      'face_landmark_68_model-shard1'
-    ]
-  },
-  {
-    name: 'ssd_mobilenetv1_model',
-    files: [
-      'ssd_mobilenetv1_model-weights_manifest.json',
-      'ssd_mobilenetv1_model-shard1'
-    ]
-  }
+const MODELS_DIR = path.join(process.cwd(), 'public', 'models');
+const BASE_URL = 'https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights';
+
+const MODELS = [
+  'ssd_mobilenetv1_model-weights_manifest.json',
+  'ssd_mobilenetv1_model-shard1',
+  'ssd_mobilenetv1_model-shard2',
+  'face_landmark_68_model-weights_manifest.json',
+  'face_landmark_68_model-shard1',
+  'face_recognition_model-weights_manifest.json',
+  'face_recognition_model-shard1'
 ];
 
-const downloadFile = (url, filepath) => {
+async function downloadFile(url, dest) {
   return new Promise((resolve, reject) => {
-    const file = fs.createWriteStream(filepath);
-    https.get(url, (response) => {
-      if (response.statusCode === 404) {
-        fs.unlink(filepath, () => {});
-        reject(new Error(`File not found: ${url}`));
+    const file = fs.createWriteStream(dest);
+    https.get(url, response => {
+      if (response.statusCode !== 200) {
+        reject(new Error(`Failed to download ${url}: ${response.statusCode}`));
         return;
       }
       response.pipe(file);
       file.on('finish', () => {
         file.close();
+        console.log(`✅ Downloaded: ${path.basename(dest)}`);
         resolve();
       });
-    }).on('error', (err) => {
-      fs.unlink(filepath, () => {});
+    }).on('error', err => {
+      fs.unlink(dest, () => {});
       reject(err);
     });
   });
-};
+}
 
-const downloadModels = async () => {
-  const modelsDir = path.join(__dirname, '../public/models');
-  
+async function main() {
   // Create models directory if it doesn't exist
-  if (!fs.existsSync(modelsDir)) {
-    fs.mkdirSync(modelsDir, { recursive: true });
-  }
-  
-  // Clean up existing files
-  const existingFiles = fs.readdirSync(modelsDir);
-  for (const file of existingFiles) {
-    fs.unlinkSync(path.join(modelsDir, file));
+  if (!fs.existsSync(MODELS_DIR)) {
+    fs.mkdirSync(MODELS_DIR, { recursive: true });
   }
 
-  const baseUrl = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model';
-  
-  for (const model of models) {
-    for (const file of model.files) {
-      const url = `${baseUrl}/${file}`;
-      const filepath = path.join(modelsDir, file);
-      console.log(`Downloading ${file}...`);
-      try {
-        await downloadFile(url, filepath);
-        console.log(`Successfully downloaded ${file}`);
-      } catch (error) {
-        console.error(`Failed to download ${file}:`, error.message);
-      }
+  console.log('📥 Downloading face-api.js models...\n');
+
+  for (const model of MODELS) {
+    const url = `${BASE_URL}/${model}`;
+    const dest = path.join(MODELS_DIR, model);
+    
+    try {
+      await downloadFile(url, dest);
+    } catch (error) {
+      console.error(`❌ Error downloading ${model}:`, error.message);
     }
   }
-  
-  console.log('Model download process completed!');
-};
 
-downloadModels().catch(console.error); 
+  console.log('\n✨ Download complete!');
+}
+
+main().catch(console.error); 

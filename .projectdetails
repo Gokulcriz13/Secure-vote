@@ -4,6 +4,122 @@ This project is a next-generation online voting system built to ensure secure, t
 
 🔐 Key Features & Functionalities:
 Voter Authentication:
+✅ Verifies Aadhaar and Voter ID with MySQL database
+✅ Uses Firebase Authentication to send OTP to registered phone number
+✅ Voter OTP stored with expiry (1 min) and validated
+✅ Face detection and verification implemented with confidence threshold
+
+Secure One-Time URL (OTU):
+✅ OTU is generated and hashed using SHA-256
+✅ Stored in MySQL with expiry (10 minutes)
+✅ Used for navigation to face-capture & voting page
+✅ Hashed OTU's private key used for final vote confirmation
+
+Facial Recognition:
+✅ Real-time camera input with optimized video settings
+✅ Uses face-api.js with SSD MobileNet model
+✅ Implements 0.7 confidence threshold for reliable detection
+✅ Stores face descriptors in session storage for verification
+✅ Processes voter photos for database storage with error handling
+
+AI-Powered Voter Monitoring:
+✅ Detects multiple faces in frame
+✅ Validates face detection confidence scores
+✅ Real-time feedback during face capture
+✅ Enhanced error handling and user feedback
+
+Blockchain Vote Recording:
+- Votes are securely stored in Polygon (Ethereum Layer 2) blockchain
+- IPFS is optionally used for decentralized vote storage
+- Ensures tamper-proof auditability and transparency
+
+Vote Confirmation:
+✅ Face verification before vote submission
+✅ Session-based face descriptor validation
+- Blockchain transaction confirmation pending
+- Vote receipt generation pending
+
+Admin Monitoring Dashboard:
+- Real-time tracking of votes
+- Alerts based on AI and logs via blockchain and local DB
+
+⚙️ Technical Stack:
+🎨 Frontend:
+Framework: Next.js 15.3.0 with App Router (TypeScript)
+Styling: Tailwind CSS
+Routing: Next Router (useRouter, useSearchParams)
+Video Input: HTML5 Video API with optimized settings
+Face Recognition: face-api.js v0.22.2
+UI Components: Custom React components with error boundaries
+
+🧠 AI/ML:
+Face Detection: face-api.js
+Models Implemented:
+✅ ssd_mobilenetv1 (with 0.7 confidence threshold)
+✅ face_landmark_68
+✅ face_recognition_model
+Model Loading: CDN-based with fallback to local
+Error Handling: Comprehensive error messages and retries
+
+🔐 Authentication:
+✅ Primary: Aadhaar + Voter ID match via MySQL
+✅ Secondary: Firebase OTP via registered phone
+✅ Tertiary: Facial Recognition with confidence threshold
+✅ Session Management: Face descriptors in sessionStorage
+
+💾 Database:
+Relational DB: MySQL
+Schema Implementation:
+✅ Voters table with photo storage
+✅ Face descriptors table for biometric data
+✅ OTP and OTU management
+✅ Verification status tracking
+
+🔒 Blockchain:
+Platform: Polygon (implementation pending)
+Smart Contracts: Solidity (to be implemented)
+Vote Recording: Hash-based verification planned
+Transaction Management: Web3.js integration pending
+
+🔧 Backend:
+Server Runtime: Node.js with Next.js API Routes
+Database ORM: mysql2/promise (pooled connections)
+Face Processing: Node Canvas for server-side image processing
+Error Handling: Comprehensive logging and user feedback
+
+☁️ Development & Configuration:
+✅ Next.js configuration with Webpack polyfills
+✅ Development server with Turbopack support
+✅ Environment variable management
+✅ Cross-browser compatibility
+✅ Optimized build configuration
+
+📁 Major Components Implemented:
+src/
+├── app/
+│   ├── page.tsx                  ✅ Landing page
+│   ├── authenticate/page.tsx     ✅ Aadhaar & Voter ID verification
+│   ├── otp/page.tsx             ✅ OTP verification
+│   ├── face-capture/page.tsx    ✅ Face detection & capture
+│   ├── vote/page.tsx            ✅ Voting interface
+│   └── api/                     ✅ API routes
+├── lib/
+│   ├── client/
+│   │   └── face-detection.ts    ✅ Face detection utilities
+│   ├── faceutils.ts            ✅ Face processing utilities
+│   └── mysql.ts                ✅ Database connection
+└── scripts/
+    └── process-voter-faces.ts   ✅ Voter photo processing
+
+🚀 Next Steps:
+1. Complete blockchain integration
+2. Implement vote submission
+3. Develop admin dashboard
+4. Add comprehensive testing
+5. Deploy to production environment
+
+🔐 Key Features & Functionalities:
+Voter Authentication:
 
 Verifies Aadhaar and Voter ID with MySQL database.
 

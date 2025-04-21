@@ -61,18 +61,26 @@ export default function VoterDetailsPage() {
           <div className="bg-gray-800 rounded-xl p-8 space-y-8">
             {/* Profile Section */}
             <div className="flex flex-col items-center">
-              {voter.photo && (
+              {voter.photo ? (
                 <div className="relative">
-                  <img
-                    src={`data:image/jpeg;base64,${voter.photo}`}
-                    alt="Voter Photo"
-                    className="w-32 h-32 rounded-full object-cover border-4 border-blue-500"
-                  />
+                  <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-blue-500">
+                    <img
+                      src={`data:image/jpeg;base64,${voter.photo}`}
+                      alt="Voter Photo"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
                   <div className="absolute -bottom-2 -right-2 bg-blue-500 text-white rounded-full p-2">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                       <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                     </svg>
                   </div>
+                </div>
+              ) : (
+                <div className="w-32 h-32 rounded-full bg-gray-700 flex items-center justify-center border-4 border-blue-500">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
                 </div>
               )}
               <h2 className="text-2xl font-semibold text-white mt-4">{voter.name}</h2>
