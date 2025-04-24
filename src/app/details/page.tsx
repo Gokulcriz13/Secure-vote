@@ -13,7 +13,6 @@ type Voter = {
   dob: string;
   photo: string;
   otu?: string;
-  hashed_otu: string;
 }
 
 export default function VoterDetailsPage() {
@@ -24,19 +23,46 @@ export default function VoterDetailsPage() {
   const [voter, setVoter] = useState<Voter | null>(null);
 
   useEffect(() => {
-    if (aadhaar && voterId) {
-      fetch("/api/fetch-voter", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ aadhaar, voterId }),
-      })
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.success) setVoter(data.voter);
-        })
-        .catch((err) => console.error("Failed to fetch voter:", err));
-    }
-  }, [aadhaar, voterId]);
+    const fetchVoterDetails = async () => {
+      if (!aadhaar || !voterId) {
+        console.error("Missing required parameters:", { aadhaar, voterId });
+        router.push("/authenticate");
+        return;
+      }
+
+      try {
+        const response = await fetch("/api/fetch-voter", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ aadhaar, voterId }),
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch voter details");
+        }
+
+        const data = await response.json();
+        
+        if (!data.success) {
+          throw new Error(data.error || "Failed to fetch voter details");
+        }
+
+        if (!data.voter.otu) {
+          console.error("No OTU found for voter");
+          router.push("/authenticate");
+          return;
+        }
+
+        setVoter(data.voter);
+      } catch (err) {
+        console.error("Failed to fetch voter:", err);
+        alert(err instanceof Error ? err.message : "Failed to fetch voter details");
+        router.push("/authenticate");
+      }
+    };
+
+    fetchVoterDetails();
+  }, [aadhaar, voterId, router]);
 
   if (!voter) {
     return (
@@ -119,12 +145,21 @@ export default function VoterDetailsPage() {
 
             {/* Action Buttons */}
             <div className="flex flex-col sm:flex-row gap-4">
-              <button
-                onClick={() => router.push(`/face-capture?otu=${encodeURIComponent(voter.hashed_otu)}`)}
-                className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800"
-              >
-                Continue to Vote
-              </button>
+              {voter.otu ? (
+                <button
+                  onClick={() => router.push(`/face-capture?otu=${encodeURIComponent(voter.otu || '')}`)}
+                  className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800"
+                >
+                  Continue to Vote
+                </button>
+              ) : (
+                <button
+                  disabled
+                  className="flex-1 bg-gray-600 text-gray-400 font-semibold py-3 px-4 rounded-lg cursor-not-allowed"
+                >
+                  Verification Token Missing
+                </button>
+              )}
               <button
                 onClick={() => router.push("/authenticate")}
                 className="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-300"

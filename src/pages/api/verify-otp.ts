@@ -51,7 +51,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     };
 
     const now = Date.now();
-    const isExpired = now - createdAt > 60 * 1000; // 60 seconds
+    const isExpired = now - createdAt > 2 *60 * 1000; // 60 seconds
 
     if (isExpired) {
       return res.status(400).json({ success: false, message: "OTP expired" });

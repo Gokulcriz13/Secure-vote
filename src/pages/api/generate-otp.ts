@@ -18,7 +18,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const otp = generateOtp(); // or generate directly here
-    const expiresAt = new Date(Date.now() + 60 * 1000); // expires in 1 min
+    const expiresAt = new Date(Date.now() + 2 * 60 * 1000); // expires in 1 min
 
     // Store OTP and expiry in DB
     await db.query(

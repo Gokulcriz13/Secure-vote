@@ -3,6 +3,59 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { verifyFace } from "@/lib/faceutils";
+import Image from "next/image";
+
+// Define types for better type safety
+type Candidate = {
+  id: string;
+  name: string;
+  party: string;
+  partyShortName: string;
+  symbol: string;
+};
+
+type VoterDetails = {
+  name: string;
+  voter_id: string;
+  aadhaar: string;
+  constituency: string;
+  ward_number: string;
+  booth_number: string;
+  phone: string;
+  address: string;
+};
+
+// Mock candidate data (in production, this would come from an API)
+const CANDIDATES: Candidate[] = [
+  {
+    id: "1",
+    name: "Narendra Modi",
+    party: "Bharatiya Janata Party",
+    partyShortName: "BJP",
+    symbol: "/images/parties/bjp.svg"
+  },
+  {
+    id: "2",
+    name: "Rahul Gandhi",
+    party: "Indian National Congress",
+    partyShortName: "INC",
+    symbol: "/images/parties/congress.svg"
+  },
+  {
+    id: "3",
+    name: "Arvind Kejriwal",
+    party: "Aam Aadmi Party",
+    partyShortName: "AAP",
+    symbol: "/images/parties/aap.svg"
+  },
+  {
+    id: "4",
+    name: "Mamata Banerjee",
+    party: "All India Trinamool Congress",
+    partyShortName: "TMC",
+    symbol: "/images/parties/tmc.svg"
+  }
+];
 
 export default function VotePage() {
   const router = useRouter();
@@ -10,24 +63,30 @@ export default function VotePage() {
   const otu = searchParams?.get("otu");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [voterDetails, setVoterDetails] = useState<any>(null);
+  const [voterDetails, setVoterDetails] = useState<VoterDetails | null>(null);
   const [selectedCandidate, setSelectedCandidate] = useState<string | null>(null);
 
   useEffect(() => {
     const verifyAndLoadVoter = async () => {
       try {
-        if (!otu) {
-          throw new Error("Invalid or missing verification token");
+        if (!otu || otu === 'undefined') {
+          throw new Error("Invalid or missing verification token. Please complete face verification again.");
         }
 
         // Fetch voter details first
         const response = await fetch(`/api/fetch-voter?otu=${encodeURIComponent(otu)}`);
         if (!response.ok) {
-          throw new Error("Failed to fetch voter details");
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Failed to fetch voter details");
         }
 
         const data = await response.json();
-        setVoterDetails(data);
+        if (!data.success || !data.voter) {
+          throw new Error(data.error || "Failed to fetch voter details");
+        }
+
+        // Set voter details including constituency, ward, and booth
+        setVoterDetails(data.voter);
 
         // Get stored face descriptor
         const storedDescriptor = sessionStorage.getItem('faceDescriptor');
@@ -36,15 +95,13 @@ export default function VotePage() {
         }
 
         const descriptor = JSON.parse(storedDescriptor);
-        
-        // Convert descriptor to Float32Array
         const float32Descriptor = new Float32Array(descriptor);
         
         // Verify face with stored descriptor
-        const verificationResult = await verifyFace(data.aadhaar, data.voter_id, float32Descriptor);
+        const verificationResult = await verifyFace(data.voter.aadhaar, data.voter.voter_id, float32Descriptor);
         
         if (!verificationResult.isMatch) {
-          throw new Error("Face verification failed. Please try again.");
+          throw new Error(`Face verification failed: ${verificationResult.message}`);
         }
 
         setIsLoading(false);
@@ -73,7 +130,7 @@ export default function VotePage() {
         body: JSON.stringify({
           otu,
           candidateId: selectedCandidate,
-          voterId: voterDetails.voter_id
+          voterId: voterDetails?.voter_id
         }),
       });
 
@@ -92,10 +149,10 @@ export default function VotePage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Verifying your identity...</p>
+          <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <p className="mt-4 text-gray-300">Verifying your identity...</p>
         </div>
       </div>
     );
@@ -103,13 +160,13 @@ export default function VotePage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-        <div className="bg-white p-8 rounded-lg shadow-md max-w-md w-full">
-          <h2 className="text-2xl font-bold text-red-600 mb-4">Verification Failed</h2>
-          <p className="text-gray-600 mb-6">{error}</p>
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 flex items-center justify-center">
+        <div className="bg-gray-800 p-8 rounded-xl shadow-lg max-w-md w-full">
+          <h2 className="text-2xl font-bold text-red-500 mb-4">Verification Failed</h2>
+          <p className="text-gray-300 mb-6">{error}</p>
           <button
             onClick={() => router.push('/face-capture')}
-            className="w-full bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600 transition-colors"
+            className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors"
           >
             Try Again
           </button>
@@ -119,53 +176,77 @@ export default function VotePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-3xl mx-auto">
-        <div className="bg-white shadow rounded-lg p-6">
-          <h1 className="text-2xl font-bold text-gray-900 mb-6">Cast Your Vote</h1>
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-4xl mx-auto">
+        <div className="bg-gray-800 shadow-xl rounded-xl p-8">
+          <h1 className="text-3xl font-bold text-white mb-8">Cast Your Vote</h1>
           
-          <div className="mb-8">
-            <h2 className="text-lg font-semibold text-gray-700 mb-2">Voter Information</h2>
-            <div className="grid grid-cols-2 gap-4">
+          {/* Voter Information */}
+          <div className="mb-10 bg-gray-700/50 rounded-lg p-6">
+            <h2 className="text-xl font-semibold text-blue-400 mb-4">Voter Information</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <p className="text-sm text-gray-500">Name</p>
-                <p className="font-medium">{voterDetails?.name}</p>
+                <p className="text-gray-400">Name</p>
+                <p className="text-white font-medium text-lg">{voterDetails?.name}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-500">Voter ID</p>
-                <p className="font-medium">{voterDetails?.voter_id}</p>
+                <p className="text-gray-400">Voter ID</p>
+                <p className="text-white font-medium text-lg">{voterDetails?.voter_id}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-500">Constituency</p>
-                <p className="font-medium">{voterDetails?.constituency}</p>
+                <p className="text-gray-400">Constituency</p>
+                <p className="text-white font-medium text-lg">{voterDetails?.constituency}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-500">Verification Status</p>
-                <p className="font-medium text-green-600">Verified</p>
+                <p className="text-gray-400">Verification Status</p>
+                <p className="text-green-400 font-medium text-lg">Verified</p>
+              </div>
+              <div>
+                <p className="text-gray-400">Ward Number</p>
+                <p className="text-white font-medium text-lg">{voterDetails?.ward_number}</p>
+              </div>
+              <div>
+                <p className="text-gray-400">Booth Number</p>
+                <p className="text-white font-medium text-lg">{voterDetails?.booth_number}</p>
+              </div>
+              <div>
+                <p className="text-gray-400">Address</p>
+                <p className="text-white font-medium text-lg">{voterDetails?.address}</p>
+              </div>
+              <div>
+                <p className="text-gray-400">Phone</p>
+                <p className="text-white font-medium text-lg">+91 {voterDetails?.phone}</p>
               </div>
             </div>
           </div>
 
+          {/* Candidate Selection */}
           <div className="mb-8">
-            <h2 className="text-lg font-semibold text-gray-700 mb-4">Select Candidate</h2>
-            <div className="space-y-4">
-              {voterDetails?.candidates?.map((candidate: any) => (
+            <h2 className="text-xl font-semibold text-blue-400 mb-6">Select Candidate</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {CANDIDATES.map((candidate) => (
                 <div
                   key={candidate.id}
-                  className={`p-4 border rounded-lg cursor-pointer transition-colors ${
+                  className={`p-4 rounded-lg cursor-pointer transition-all transform hover:scale-105 ${
                     selectedCandidate === candidate.id
-                      ? 'border-blue-500 bg-blue-50'
-                      : 'border-gray-200 hover:border-blue-300'
+                      ? 'bg-blue-600 border-2 border-blue-400'
+                      : 'bg-gray-700/50 hover:bg-gray-700'
                   }`}
                   onClick={() => setSelectedCandidate(candidate.id)}
                 >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium">{candidate.name}</p>
-                      <p className="text-sm text-gray-500">{candidate.party}</p>
+                  <div className="flex items-center space-x-4">
+                    <div className="relative w-16 h-16 bg-white rounded-lg overflow-hidden">
+                      <Image
+                        src={candidate.symbol}
+                        alt={`${candidate.party} symbol`}
+                        fill
+                        className="object-contain p-2"
+                      />
                     </div>
-                    <div className="text-sm text-gray-500">
-                      {candidate.symbol}
+                    <div>
+                      <p className="font-medium text-white">{candidate.name}</p>
+                      <p className="text-sm text-gray-300">{candidate.party}</p>
+                      <p className="text-xs text-blue-400 mt-1">{candidate.partyShortName}</p>
                     </div>
                   </div>
                 </div>
@@ -173,14 +254,15 @@ export default function VotePage() {
             </div>
           </div>
 
+          {/* Submit Button */}
           <div className="flex justify-end">
             <button
               onClick={handleVote}
               disabled={!selectedCandidate}
-              className={`px-6 py-2 rounded-md text-white font-medium ${
+              className={`px-8 py-3 rounded-lg text-white font-medium transition-all transform hover:scale-105 ${
                 selectedCandidate
                   ? 'bg-green-600 hover:bg-green-700'
-                  : 'bg-gray-400 cursor-not-allowed'
+                  : 'bg-gray-600 cursor-not-allowed'
               }`}
             >
               Submit Vote

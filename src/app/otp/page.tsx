@@ -92,12 +92,36 @@ export default function OTPVerification() {
     }
 
     try {
+      // Verify OTP
       const result = await confirmationResult.confirm(otp);
       console.log("OTP verified successfully:", result.user);
-      router.push(`/details?aadhaar=${aadhaar}&voter_id=${voterId}&otu=${otuHash}`);
+
+      // Generate new OTU
+      const rawOTU = `${aadhaar}-${voterId}-${Date.now()}`;
+      const newOtuHash = sha256(rawOTU).toString();
+
+      // Store OTU in database
+      const storeOtuResponse = await fetch("/api/store-otu", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          aadhaar, 
+          voterId, 
+          otu: newOtuHash 
+        }),
+      });
+
+      if (!storeOtuResponse.ok) {
+        throw new Error("Failed to store verification token");
+      }
+
+      // Redirect to details page with the correct parameters
+      const detailsUrl = `/details?aadhaar=${encodeURIComponent(aadhaar)}&voter_id=${encodeURIComponent(voterId)}`;
+      console.log("Redirecting to:", detailsUrl);
+      router.push(detailsUrl);
     } catch (error) {
-      console.error("OTP verification failed:", error);
-      alert("Invalid OTP. Please try again.");
+      console.error("Verification failed:", error);
+      alert(error instanceof Error ? error.message : "Verification failed. Please try again.");
     }
   };
 

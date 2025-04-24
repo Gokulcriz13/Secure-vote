@@ -1,3 +1,4 @@
+// src/app/api/fetch-voter/route.ts
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/mysql';
 
@@ -12,16 +13,7 @@ interface Voter {
   dob: string;
   photo: Buffer;
   otu?: string;
-  hashed_otu?: string;
   otu_expires_at?: Date;
-}
-
-interface Candidate {
-  id: number;
-  name: string;
-  party: string;
-  symbol: string;
-  image: string;
 }
 
 export async function GET(request: Request) {
@@ -34,28 +26,33 @@ export async function POST(request: Request) {
 
 async function handleRequest(request: Request) {
   try {
+    console.log("🛬 Incoming request:", request.method, request.url);
+
     let otu: string | null = null;
     let aadhaar: string | null = null;
     let voterId: string | null = null;
-    
+
     if (request.method === 'GET') {
       const { searchParams } = new URL(request.url);
       otu = searchParams.get('otu');
+      console.log("🟦 Extracted from GET params:", { otu });
     } else {
       const body = await request.json();
       otu = body.otu;
       aadhaar = body.aadhaar;
       voterId = body.voterId;
+      console.log("📦 Extracted from POST body:", { otu, aadhaar, voterId });
     }
 
     if (!otu && (!aadhaar || !voterId)) {
+      console.warn("⚠️ Missing OTU or Aadhaar/Voter ID");
       return NextResponse.json(
         { error: 'Either OTU or both Aadhaar and Voter ID are required' },
         { status: 400 }
       );
     }
 
-    // Fetch voter details
+    // Build query
     let query = '';
     let params: any[] = [];
 
@@ -67,9 +64,14 @@ async function handleRequest(request: Request) {
       params = [aadhaar, voterId];
     }
 
+    console.log("📡 Executing SQL query:", query);
+    console.log("📨 With params:", params);
+
     const [rows] = await db.query(query, params) as [Voter[], any];
+    console.log("🧾 Query result rows:", rows);
 
     if (!rows || !Array.isArray(rows) || rows.length === 0) {
+      console.warn("❌ No voter found or OTU expired.");
       return NextResponse.json(
         { error: 'Invalid credentials or expired OTU' },
         { status: 404 }
@@ -77,9 +79,15 @@ async function handleRequest(request: Request) {
     }
 
     const voter = rows[0];
-    
-    // Convert photo Buffer to base64 string if it exists
+
     const photoBase64 = voter.photo ? voter.photo.toString('base64') : null;
+
+    console.log("✅ Voter found:", {
+      name: voter.name,
+      voter_id: voter.voter_id,
+      aadhaar: voter.aadhaar,
+      otu: voter.otu ? "present" : "missing"
+    });
 
     return NextResponse.json({
       success: true,
@@ -93,15 +101,14 @@ async function handleRequest(request: Request) {
         dob: voter.dob,
         photo: photoBase64,
         otu: voter.otu,
-        hashed_otu: voter.hashed_otu,
-        constituency: "Your Constituency" // Placeholder until constituencies table is created
+        constituency: "Your Constituency"
       }
     });
   } catch (error) {
-    console.error('Error fetching voter details:', error);
+    console.error("❌ Error fetching voter details:", error);
     return NextResponse.json(
-      { error: 'Failed to fetch voter details' },
+      { error: error instanceof Error ? error.message : String(error) },
       { status: 500 }
     );
   }
-} 
+}
