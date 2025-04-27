@@ -94,6 +94,19 @@ export default function VotePage() {
           throw new Error("Face verification data not found. Please complete face verification again.");
         }
 
+        // Check if verification is recent (within 5 minutes)
+        const lastVerification = sessionStorage.getItem('lastVerification');
+        if (lastVerification) {
+          const verificationTime = parseInt(lastVerification);
+          const currentTime = Date.now();
+          if (currentTime - verificationTime > 5 * 60 * 1000) { // 5 minutes
+            throw new Error("Face verification has expired. Please verify again.");
+          }
+        }
+
+        // Clear the descriptor immediately after retrieving it
+        sessionStorage.removeItem('faceDescriptor');
+
         const descriptor = JSON.parse(storedDescriptor);
         const float32Descriptor = new Float32Array(descriptor);
         
@@ -103,6 +116,9 @@ export default function VotePage() {
         if (!verificationResult.isMatch) {
           throw new Error(`Face verification failed: ${verificationResult.message}`);
         }
+
+        // Store verification timestamp
+        sessionStorage.setItem('lastVerification', Date.now().toString());
 
         setIsLoading(false);
       } catch (error) {

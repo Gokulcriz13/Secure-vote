@@ -60,7 +60,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
 
       const distance = calculateDescriptorDistance(faceDescriptor, storedDescriptor);
-      const match = distance < 0.6;
+      const match = distance < 0.5;
+
+      if (distance < 0.1) {
+        return res.status(400).json({
+          success: false,
+          match: false,
+          distance,
+          message: 'Suspicious verification attempt detected'
+        });
+      }
 
       return res.status(200).json({
         success: true,

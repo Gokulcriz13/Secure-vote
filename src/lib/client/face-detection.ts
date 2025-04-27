@@ -5,10 +5,15 @@ export type FaceDetection = {
   };
   landmarks: { positions: Array<{ x: number; y: number }> };
   descriptor: Float32Array;
+  expressions?: { [key: string]: number };
 };
 
 let faceapi: any = null;
 let modelsLoaded = false;
+let lastBlinkTime = 0;
+let blinkCount = 0;
+let lastHeadPosition: { x: number; y: number } | null = null;
+let headMovementDetected = false;
 
 export async function loadClientModels() {
   if (modelsLoaded) return;
@@ -44,13 +49,54 @@ export async function detectFace(video: HTMLVideoElement, minConfidence = 0.7): 
     const detection = await faceapi
       .detectSingleFace(video, new faceapi.SsdMobilenetv1Options({ minConfidence }))
       .withFaceLandmarks()
-      .withFaceDescriptor();
+      .withFaceDescriptor()
+      .withFaceExpressions();
 
     if (!detection) {
       throw new Error('No face detected in frame. Please ensure your face is clearly visible.');
     }
 
-    return detection;
+    // Check for blinking
+    const landmarks = detection.landmarks;
+    const leftEye = landmarks.getLeftEye();
+    const rightEye = landmarks.getRightEye();
+    
+    // Calculate eye aspect ratio (EAR)
+    const leftEAR = calculateEAR(leftEye);
+    const rightEAR = calculateEAR(rightEye);
+    const avgEAR = (leftEAR + rightEAR) / 2;
+
+    // Detect blink (EAR drops below threshold)
+    if (avgEAR < 0.25) {
+      const currentTime = Date.now();
+      if (currentTime - lastBlinkTime > 300) { // Prevent multiple detections for same blink
+        blinkCount++;
+        lastBlinkTime = currentTime;
+      }
+    }
+
+    // Check for head movement
+    const currentHeadPosition = {
+      x: detection.detection.box.x + detection.detection.box.width / 2,
+      y: detection.detection.box.y + detection.detection.box.height / 2
+    };
+
+    if (lastHeadPosition) {
+      const movement = Math.sqrt(
+        Math.pow(currentHeadPosition.x - lastHeadPosition.x, 2) +
+        Math.pow(currentHeadPosition.y - lastHeadPosition.y, 2)
+      );
+      
+      if (movement > 20) { // Threshold for significant movement
+        headMovementDetected = true;
+      }
+    }
+    lastHeadPosition = currentHeadPosition;
+
+    return {
+      ...detection,
+      expressions: detection.expressions
+    };
   } catch (error) {
     console.error('Error during face detection:', error);
     throw error instanceof Error ? error : new Error('Face detection failed. Please try again.');
@@ -78,4 +124,28 @@ export function getFaceDescriptor(): Float32Array | null {
     console.error('Error retrieving face descriptor:', error);
     return null;
   }
+}
+
+export function checkLiveness(): boolean {
+  // Require at least 2 blinks and some head movement
+  const isLive = blinkCount >= 2 && headMovementDetected;
+  
+  // Reset counters for next verification
+  blinkCount = 0;
+  headMovementDetected = false;
+  lastHeadPosition = null;
+  
+  return isLive;
+}
+
+function calculateEAR(eye: Array<{ x: number; y: number }>): number {
+  // Calculate the eye aspect ratio (EAR)
+  const A = distance(eye[1], eye[5]);
+  const B = distance(eye[2], eye[4]);
+  const C = distance(eye[0], eye[3]);
+  return (A + B) / (2 * C);
+}
+
+function distance(p1: { x: number; y: number }, p2: { x: number; y: number }): number {
+  return Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2));
 } 

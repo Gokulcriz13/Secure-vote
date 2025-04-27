@@ -15,6 +15,10 @@ export default function FaceCapturePage() {
   const [isModelLoading, setIsModelLoading] = useState(true);
   const [detectionStatus, setDetectionStatus] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [livenessCheck, setLivenessCheck] = useState(false);
+  const [blinkCount, setBlinkCount] = useState(0);
+  const [headMovementDetected, setHeadMovementDetected] = useState(false);
+  const [lastHeadPosition, setLastHeadPosition] = useState<{ x: number; y: number } | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
   const otu = searchParams?.get("otu");
@@ -69,13 +73,58 @@ export default function FaceCapturePage() {
 
     initFaceDetection();
 
+    const checkLiveness = async () => {
+      if (!videoRef.current || isProcessing) return;
+
+      try {
+        const detection = await detectFace(videoRef.current);
+        
+        // Update UI with liveness check status
+        if (detection.expressions) {
+          const isBlinking = detection.expressions.eyeBlink > 0.5;
+          if (isBlinking) {
+            setBlinkCount(prev => prev + 1);
+          }
+        }
+
+        // Check for head movement
+        if (detection.detection.box) {
+          const movement = Math.sqrt(
+            Math.pow(detection.detection.box.x - (lastHeadPosition?.x || 0), 2) +
+            Math.pow(detection.detection.box.y - (lastHeadPosition?.y || 0), 2)
+          );
+          
+          if (movement > 20) {
+            setHeadMovementDetected(true);
+          }
+        }
+
+        // If both conditions are met, proceed with verification
+        if (blinkCount >= 2 && headMovementDetected) {
+          setLivenessCheck(true);
+          setDetectionStatus("Liveness check passed! Proceeding with verification...");
+          await handleFaceDetection();
+        } else {
+          setDetectionStatus(
+            `Please perform liveness check: Blink ${2 - blinkCount} more times and move your head slightly`
+          );
+        }
+      } catch (error) {
+        console.error("Liveness check error:", error);
+      }
+    };
+
+    // Run liveness check every 100ms
+    const livenessInterval = setInterval(checkLiveness, 100);
+
     return () => {
+      clearInterval(livenessInterval);
       if (videoRef.current?.srcObject) {
         const stream = videoRef.current.srcObject as MediaStream;
         stream.getTracks().forEach((track) => track.stop());
       }
     };
-  }, [otu, router]);
+  }, [otu, router, blinkCount, headMovementDetected]);
 
   const startVideo = async () => {
     try {
@@ -174,7 +223,18 @@ export default function FaceCapturePage() {
         <div className="max-w-2xl mx-auto">
           <div className="text-center mb-8">
             <h1 className="text-4xl font-bold text-white mb-2">Face Verification</h1>
-            <p className="text-gray-400">Please position your face in the camera frame</p>
+            <p className="text-gray-400">Please follow these steps for verification:</p>
+            <ol className="text-gray-300 text-left mt-4 space-y-2">
+              <li>1. Position your face in the camera frame</li>
+              <li>2. Blink your eyes naturally (2 times)</li>
+              <li>3. Move your head slightly left and right</li>
+            </ol>
+            <button
+              onClick={() => router.push('/instructions')}
+              className="mt-4 text-blue-400 hover:text-blue-300 underline"
+            >
+              View Detailed Instructions
+            </button>
           </div>
 
           <div className="relative aspect-video bg-black rounded-xl overflow-hidden mb-6">
@@ -190,11 +250,18 @@ export default function FaceCapturePage() {
 
           <div className="text-center space-y-4">
             <p className="text-lg text-blue-400">{detectionStatus}</p>
+            {!livenessCheck && (
+              <div className="text-gray-300">
+                <p>Liveness Check Progress:</p>
+                <p>Blinks: {blinkCount}/2</p>
+                <p>Head Movement: {headMovementDetected ? "✓" : "✗"}</p>
+              </div>
+            )}
             <button
               onClick={handleFaceDetection}
-              disabled={isProcessing}
+              disabled={isProcessing || !livenessCheck}
               className={`px-8 py-3 rounded-full text-white font-semibold ${
-                isProcessing
+                isProcessing || !livenessCheck
                   ? "bg-gray-600 cursor-not-allowed"
                   : "bg-blue-600 hover:bg-blue-700"
               }`}
