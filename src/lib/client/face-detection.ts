@@ -1,3 +1,5 @@
+import * as faceapi from 'face-api.js';
+
 export type FaceDetection = {
   detection: {
     score: number;
@@ -10,8 +12,6 @@ export type FaceDetection = {
 
 let faceapi: any = null;
 let modelsLoaded = false;
-let lastBlinkTime = 0;
-let blinkCount = 0;
 let lastHeadPosition: { x: number; y: number } | null = null;
 let headMovementDetected = false;
 
@@ -29,7 +29,8 @@ export async function loadClientModels() {
     await Promise.all([
       faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
       faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-      faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+      faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
+      faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL), // ✅ Required for withFaceExpressions()
     ]);
 
     modelsLoaded = true;
@@ -40,12 +41,13 @@ export async function loadClientModels() {
   }
 }
 
-export async function detectFace(video: HTMLVideoElement, minConfidence = 0.7): Promise<FaceDetection> {
+export async function detectFace(video: HTMLVideoElement, minConfidence = 0.5): Promise<FaceDetection> {
   if (!faceapi || !modelsLoaded) {
     throw new Error('Face API not initialized. Call loadClientModels first.');
   }
 
   try {
+    // Detect face with lower confidence threshold for better detection
     const detection = await faceapi
       .detectSingleFace(video, new faceapi.SsdMobilenetv1Options({ minConfidence }))
       .withFaceLandmarks()
@@ -56,26 +58,11 @@ export async function detectFace(video: HTMLVideoElement, minConfidence = 0.7): 
       throw new Error('No face detected in frame. Please ensure your face is clearly visible.');
     }
 
-    // Check for blinking
-    const landmarks = detection.landmarks;
-    const leftEye = landmarks.getLeftEye();
-    const rightEye = landmarks.getRightEye();
-    
-    // Calculate eye aspect ratio (EAR)
-    const leftEAR = calculateEAR(leftEye);
-    const rightEAR = calculateEAR(rightEye);
-    const avgEAR = (leftEAR + rightEAR) / 2;
+    // Log detection box and expressions for debugging
+    console.log('Detection Box:', detection.detection.box);
+    console.log('Expressions:', detection.expressions);
 
-    // Detect blink (EAR drops below threshold)
-    if (avgEAR < 0.25) {
-      const currentTime = Date.now();
-      if (currentTime - lastBlinkTime > 300) { // Prevent multiple detections for same blink
-        blinkCount++;
-        lastBlinkTime = currentTime;
-      }
-    }
-
-    // Check for head movement
+    // Head movement detection
     const currentHeadPosition = {
       x: detection.detection.box.x + detection.detection.box.width / 2,
       y: detection.detection.box.y + detection.detection.box.height / 2
@@ -86,11 +73,15 @@ export async function detectFace(video: HTMLVideoElement, minConfidence = 0.7): 
         Math.pow(currentHeadPosition.x - lastHeadPosition.x, 2) +
         Math.pow(currentHeadPosition.y - lastHeadPosition.y, 2)
       );
-      
-      if (movement > 20) { // Threshold for significant movement
+
+      console.log('Head movement distance:', movement);
+
+      if (movement > 10) { // Reduced threshold for head movement detection
         headMovementDetected = true;
+        console.log('✅ Head movement detected');
       }
     }
+
     lastHeadPosition = currentHeadPosition;
 
     return {
@@ -117,7 +108,7 @@ export function getFaceDescriptor(): Float32Array | null {
   try {
     const stored = sessionStorage.getItem('faceDescriptor');
     if (!stored) return null;
-    
+
     const array = JSON.parse(stored);
     return new Float32Array(array);
   } catch (error) {
@@ -127,25 +118,13 @@ export function getFaceDescriptor(): Float32Array | null {
 }
 
 export function checkLiveness(): boolean {
-  // Require at least 2 blinks and some head movement
-  const isLive = blinkCount >= 2 && headMovementDetected;
-  
-  // Reset counters for next verification
-  blinkCount = 0;
+  const isLive = headMovementDetected;
+
+  console.log('Liveness Check => Head Movement:', headMovementDetected);
+
+  // Reset after check
   headMovementDetected = false;
   lastHeadPosition = null;
-  
+
   return isLive;
 }
-
-function calculateEAR(eye: Array<{ x: number; y: number }>): number {
-  // Calculate the eye aspect ratio (EAR)
-  const A = distance(eye[1], eye[5]);
-  const B = distance(eye[2], eye[4]);
-  const C = distance(eye[0], eye[3]);
-  return (A + B) / (2 * C);
-}
-
-function distance(p1: { x: number; y: number }, p2: { x: number; y: number }): number {
-  return Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2));
-} 

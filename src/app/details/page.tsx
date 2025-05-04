@@ -66,25 +66,47 @@ export default function VoterDetailsPage() {
 
   if (!voter) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-blue-400 text-xl">Loading voter details...</div>
-          <div className="mt-4 w-12 h-12 border-4 border-blue-400 border-t-transparent rounded-full animate-spin mx-auto"></div>
+      <div className="min-h-screen relative flex items-center justify-center">
+        <div
+          className="absolute inset-0 z-0"
+          style={{
+            backgroundImage: "url('/india-flag-bg.jpg')",
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat',
+            filter: 'brightness(0.85)',
+          }}
+        />
+        <div className="absolute inset-0 bg-white/70 z-10" />
+        <div className="text-center relative z-20">
+          <div className="text-blue-600 text-xl">Loading voter details...</div>
+          <div className="mt-4 w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800">
-      <div className="container mx-auto px-4 py-16">
-        <div className="max-w-2xl mx-auto">
+    <div className="min-h-screen relative flex items-center justify-center">
+      <div
+        className="absolute inset-0 z-0"
+        style={{
+          backgroundImage: "url('/india-flag-bg.jpg')",
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat',
+          filter: 'brightness(0.85)',
+        }}
+      />
+      <div className="absolute inset-0 bg-white/70 z-10" />
+      <div className="container mx-auto px-4 py-16 relative z-20">
+        <div className="max-w-2xl mx-auto bg-white/90 rounded-xl shadow-2xl p-8 backdrop-blur-md">
           <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold text-white mb-2">Voter Details</h1>
-            <p className="text-gray-400">Please verify your information before proceeding</p>
+            <h1 className="text-4xl font-bold text-gray-900 mb-2 drop-shadow">Voter Details</h1>
+            <p className="text-gray-700">Please verify your information before proceeding</p>
           </div>
 
-          <div className="bg-gray-800 rounded-xl p-8 space-y-8">
+          <div className="space-y-8">
             {/* Profile Section */}
             <div className="flex flex-col items-center">
               {voter.photo ? (
@@ -103,39 +125,39 @@ export default function VoterDetailsPage() {
                   </div>
                 </div>
               ) : (
-                <div className="w-32 h-32 rounded-full bg-gray-700 flex items-center justify-center border-4 border-blue-500">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <div className="w-32 h-32 rounded-full bg-gray-200 flex items-center justify-center border-4 border-blue-500">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                   </svg>
                 </div>
               )}
-              <h2 className="text-2xl font-semibold text-white mt-4">{voter.name}</h2>
-              <p className="text-gray-400">{voter.gender} • {voter.dob}</p>
+              <h2 className="text-2xl font-semibold text-gray-900 mt-4">{voter.name}</h2>
+              <p className="text-gray-600">{voter.gender} • {voter.dob}</p>
             </div>
 
             {/* Details Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-gray-700/50 p-4 rounded-lg">
-                <h3 className="text-blue-400 font-semibold mb-2">Identification</h3>
-                <div className="space-y-2 text-gray-300">
-                  <p><span className="text-gray-400">Aadhaar:</span> {voter.aadhaar}</p>
-                  <p><span className="text-gray-400">Voter ID:</span> {voter.voter_id}</p>
+              <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                <h3 className="text-blue-600 font-semibold mb-2">Identification</h3>
+                <div className="space-y-2 text-gray-700">
+                  <p><span className="text-gray-500">Aadhaar:</span> {voter.aadhaar}</p>
+                  <p><span className="text-gray-500">Voter ID:</span> {voter.voter_id}</p>
                 </div>
               </div>
 
-              <div className="bg-gray-700/50 p-4 rounded-lg">
-                <h3 className="text-blue-400 font-semibold mb-2">Contact</h3>
-                <div className="space-y-2 text-gray-300">
-                  <p><span className="text-gray-400">Phone:</span> +91-{voter.phone}</p>
-                  <p><span className="text-gray-400">Address:</span> {voter.address}</p>
+              <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                <h3 className="text-blue-600 font-semibold mb-2">Contact</h3>
+                <div className="space-y-2 text-gray-700">
+                  <p><span className="text-gray-500">Phone:</span> +91-{voter.phone}</p>
+                  <p><span className="text-gray-500">Address:</span> {voter.address}</p>
                 </div>
               </div>
             </div>
 
             {/* Security Info */}
-            <div className="bg-gray-700/50 p-4 rounded-lg">
-              <h3 className="text-blue-400 font-semibold mb-2">Security Status</h3>
-              <div className="flex items-center space-x-2 text-gray-300">
+            <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+              <h3 className="text-blue-600 font-semibold mb-2">Security Status</h3>
+              <div className="flex items-center space-x-2 text-gray-700">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500" viewBox="0 0 20 20" fill="currentColor">
                   <path fillRule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
@@ -148,21 +170,21 @@ export default function VoterDetailsPage() {
               {voter.otu ? (
                 <button
                   onClick={() => router.push(`/face-capture?otu=${encodeURIComponent(voter.otu || '')}`)}
-                  className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800"
+                  className="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-white"
                 >
                   Continue to Vote
                 </button>
               ) : (
                 <button
                   disabled
-                  className="flex-1 bg-gray-600 text-gray-400 font-semibold py-3 px-4 rounded-lg cursor-not-allowed"
+                  className="flex-1 bg-gray-300 text-gray-400 font-semibold py-3 px-4 rounded-lg cursor-not-allowed"
                 >
                   Verification Token Missing
                 </button>
               )}
               <button
                 onClick={() => router.push("/authenticate")}
-                className="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-300"
+                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-3 px-4 rounded-lg transition-all duration-300"
               >
                 Back to Authentication
               </button>

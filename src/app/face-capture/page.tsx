@@ -6,7 +6,6 @@ import {
   loadClientModels,
   detectFace,
   storeFaceDescriptor,
-  getFaceDescriptor,
 } from "@/lib/client/face-detection";
 
 export default function FaceCapturePage() {
@@ -15,46 +14,31 @@ export default function FaceCapturePage() {
   const [isModelLoading, setIsModelLoading] = useState(true);
   const [detectionStatus, setDetectionStatus] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
-  const [livenessCheck, setLivenessCheck] = useState(false);
-  const [blinkCount, setBlinkCount] = useState(0);
-  const [headMovementDetected, setHeadMovementDetected] = useState(false);
-  const [lastHeadPosition, setLastHeadPosition] = useState<{ x: number; y: number } | null>(null);
+  const [faceDetected, setFaceDetected] = useState(false);
+  const [latestDescriptor, setLatestDescriptor] = useState<Float32Array | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
   const otu = searchParams?.get("otu");
 
   useEffect(() => {
     if (!otu || otu === "undefined") {
-      setDetectionStatus(
-        "Invalid or missing verification token. Redirecting to authentication..."
-      );
-      setTimeout(() => {
-        router.push("/authenticate");
-      }, 2000);
+      setDetectionStatus("Invalid or missing verification token. Redirecting to authentication...");
+      setTimeout(() => router.push("/authenticate"), 2000);
       return;
     }
 
     fetch(`/api/fetch-voter?otu=${encodeURIComponent(otu)}`)
       .then((res) => {
-        if (!res.ok) {
-          throw new Error("Invalid verification token");
-        }
+        if (!res.ok) throw new Error("Invalid verification token");
         return res.json();
       })
       .then((data) => {
-        if (!data.success || !data.voter) {
-          throw new Error("Invalid verification token");
-        }
+        if (!data.success || !data.voter) throw new Error("Invalid verification token");
       })
       .catch((error) => {
         console.error("Error validating token:", error);
-        setDetectionStatus(
-          "Invalid verification token. Redirecting to authentication..."
-        );
-        setTimeout(() => {
-          router.push("/authenticate");
-        }, 2000);
-        return;
+        setDetectionStatus("Invalid verification token. Redirecting...");
+        setTimeout(() => router.push("/authenticate"), 2000);
       });
 
     const initFaceDetection = async () => {
@@ -73,58 +57,37 @@ export default function FaceCapturePage() {
 
     initFaceDetection();
 
-    const checkLiveness = async () => {
+    const checkFaceDetection = async () => {
       if (!videoRef.current || isProcessing) return;
-
       try {
         const detection = await detectFace(videoRef.current);
-        
-        // Update UI with liveness check status
-        if (detection.expressions) {
-          const isBlinking = detection.expressions.eyeBlink > 0.5;
-          if (isBlinking) {
-            setBlinkCount(prev => prev + 1);
-          }
-        }
+        console.log("Detection:", detection);
 
-        // Check for head movement
-        if (detection.detection.box) {
-          const movement = Math.sqrt(
-            Math.pow(detection.detection.box.x - (lastHeadPosition?.x || 0), 2) +
-            Math.pow(detection.detection.box.y - (lastHeadPosition?.y || 0), 2)
-          );
-          
-          if (movement > 20) {
-            setHeadMovementDetected(true);
-          }
-        }
-
-        // If both conditions are met, proceed with verification
-        if (blinkCount >= 2 && headMovementDetected) {
-          setLivenessCheck(true);
-          setDetectionStatus("Liveness check passed! Proceeding with verification...");
-          await handleFaceDetection();
+        if (detection && detection.detection?.box) {
+          setFaceDetected(true);
+          setLatestDescriptor(detection.descriptor);
+          setDetectionStatus("Face detected. Please hold still for verification.");
         } else {
-          setDetectionStatus(
-            `Please perform liveness check: Blink ${2 - blinkCount} more times and move your head slightly`
-          );
+          setFaceDetected(false);
+          setLatestDescriptor(null);
+          setDetectionStatus("No face detected. Please adjust your position.");
         }
       } catch (error) {
-        console.error("Liveness check error:", error);
+        console.error("Face detection error:", error);
+        setDetectionStatus("Error during face detection. Please try again.");
       }
     };
 
-    // Run liveness check every 100ms
-    const livenessInterval = setInterval(checkLiveness, 100);
+    const faceDetectionInterval = setInterval(checkFaceDetection, 200);
 
     return () => {
-      clearInterval(livenessInterval);
+      clearInterval(faceDetectionInterval);
       if (videoRef.current?.srcObject) {
         const stream = videoRef.current.srcObject as MediaStream;
         stream.getTracks().forEach((track) => track.stop());
       }
     };
-  }, [otu, router, blinkCount, headMovementDetected]);
+  }, [otu, router, isProcessing]);
 
   const startVideo = async () => {
     try {
@@ -137,24 +100,47 @@ export default function FaceCapturePage() {
       });
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        videoRef.current.onloadeddata = () => {
+          if (videoRef.current) {
+            drawDetection(videoRef.current);
+          }
+        };
       }
     } catch (error) {
       console.error("Error accessing camera:", error);
       setDetectionStatus("Error accessing camera. Please check permissions.");
-      throw error;
     }
   };
 
-  const handleFaceDetection = async () => {
-    if (!videoRef.current || isProcessing || !otu) return;
+  const drawDetection = async (videoElement: HTMLVideoElement) => {
+    const detection = await detectFace(videoElement);
+    if (detection && detection.detection?.box) {
+      const canvas = canvasRef.current;
+      const context = canvas?.getContext("2d");
+      if (context && canvas) {
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        const box = detection.detection.box;
+        context.strokeStyle = "#00FF00";
+        context.lineWidth = 2;
+        context.strokeRect(box.x, box.y, box.width, box.height);
+        context.fillStyle = "#FF0000";
+        detection.landmarks.positions.forEach((point: { x: number; y: number }) => {
+          context.beginPath();
+          context.arc(point.x, point.y, 2, 0, 2 * Math.PI);
+          context.fill();
+        });
+      }
+    }
+    requestAnimationFrame(() => drawDetection(videoElement));
+  };
 
+  const handleFaceDetection = async (descriptor: Float32Array) => {
+    if (isProcessing || !otu || !descriptor) return;
     setIsProcessing(true);
     setDetectionStatus("Processing...");
 
     try {
-      const voterResponse = await fetch(
-        `/api/fetch-voter?otu=${encodeURIComponent(otu)}`
-      );
+      const voterResponse = await fetch(`/api/fetch-voter?otu=${encodeURIComponent(otu)}`);
       if (!voterResponse.ok) {
         const errorData = await voterResponse.json();
         throw new Error(errorData.error || "Failed to fetch voter details");
@@ -165,9 +151,7 @@ export default function FaceCapturePage() {
         throw new Error(voterData.error || "Failed to fetch voter details");
       }
 
-      const detection = await detectFace(videoRef.current);
-
-      storeFaceDescriptor(detection.descriptor);
+      storeFaceDescriptor(descriptor);
 
       const response = await fetch("/api/face-verification", {
         method: "POST",
@@ -177,18 +161,13 @@ export default function FaceCapturePage() {
         body: JSON.stringify({
           aadhaar: voterData.voter.aadhaar,
           voterId: voterData.voter.voter_id,
-          faceDescriptor: Array.from(detection.descriptor),
+          faceDescriptor: Array.from(descriptor),
           mode: "store",
         }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Failed to store face descriptor");
-      }
-
       const verificationData = await response.json();
-      if (!verificationData.success) {
+      if (!response.ok || !verificationData.success) {
         throw new Error(verificationData.message || "Face verification failed");
       }
 
@@ -196,11 +175,7 @@ export default function FaceCapturePage() {
       router.push(`/vote?otu=${otu}`);
     } catch (error) {
       console.error("Error during face detection:", error);
-      setDetectionStatus(
-        error instanceof Error
-          ? error.message
-          : "Error during face detection. Please try again."
-      );
+      setDetectionStatus(error instanceof Error ? error.message : "Error during face detection.");
     } finally {
       setIsProcessing(false);
     }
@@ -226,11 +201,10 @@ export default function FaceCapturePage() {
             <p className="text-gray-400">Please follow these steps for verification:</p>
             <ol className="text-gray-300 text-left mt-4 space-y-2">
               <li>1. Position your face in the camera frame</li>
-              <li>2. Blink your eyes naturally (2 times)</li>
-              <li>3. Move your head slightly left and right</li>
+              <li>2. Hold still while the system detects your face</li>
             </ol>
             <button
-              onClick={() => router.push('/instructions')}
+              onClick={() => router.push("/instructions")}
               className="mt-4 text-blue-400 hover:text-blue-300 underline"
             >
               View Detailed Instructions
@@ -250,18 +224,15 @@ export default function FaceCapturePage() {
 
           <div className="text-center space-y-4">
             <p className="text-lg text-blue-400">{detectionStatus}</p>
-            {!livenessCheck && (
-              <div className="text-gray-300">
-                <p>Liveness Check Progress:</p>
-                <p>Blinks: {blinkCount}/2</p>
-                <p>Head Movement: {headMovementDetected ? "✓" : "✗"}</p>
-              </div>
-            )}
             <button
-              onClick={handleFaceDetection}
-              disabled={isProcessing || !livenessCheck}
+              onClick={() => {
+                if (latestDescriptor) {
+                  handleFaceDetection(latestDescriptor);
+                }
+              }}
+              disabled={isProcessing || !faceDetected || !latestDescriptor}
               className={`px-8 py-3 rounded-full text-white font-semibold ${
-                isProcessing || !livenessCheck
+                isProcessing || !faceDetected || !latestDescriptor
                   ? "bg-gray-600 cursor-not-allowed"
                   : "bg-blue-600 hover:bg-blue-700"
               }`}

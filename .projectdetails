@@ -268,3 +268,25 @@ secure-voting/
 ├── public/
 │   └── models/                     # face-api.js models
 ├── .env                            # MySQL & Firebase secrets
+
+## Recent UI/UX Actions & Improvements (2024-06)
+
+- All main pages (Authenticate, OTP, Details, Face Capture) now use a consistent light theme with the Indian flag as a background, a semi-transparent white overlay, and a readable, modern card layout for content.
+- All form containers use `bg-white/90`, rounded corners, shadow, and blur for clarity.
+- Button and text colors are updated for accessibility and visual consistency.
+- The face capture page's "Verify Face" button now works correctly: it triggers a function that runs detection and passes the descriptor to the handler, fixing the 'Expected 1 arguments, but got 0' error.
+- All pages are now visually consistent and optimized for readability and accessibility.
+- Large background images are compressed for faster loading.
+
+### Example Fix for Face Capture Button
+```js
+const handleButtonClick = async () => {
+  if (!videoRef.current) return;
+  const detection = await detectFace(videoRef.current);
+  if (detection && detection.descriptor) {
+    handleFaceDetection(detection.descriptor);
+  }
+};
+// ...
+<button onClick={handleButtonClick} ...>Verify Face</button>
+```
