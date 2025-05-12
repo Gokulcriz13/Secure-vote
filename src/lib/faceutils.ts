@@ -1,60 +1,23 @@
-export async function verifyFace(
-  aadhaar: string,
-  voterId: string,
-  descriptor: Float32Array
-): Promise<{ isMatch: boolean; message: string }> {
-  try {
-    const response = await fetch('/api/face-verification', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        aadhaar,
-        voterId,
-        faceDescriptor: Array.from(descriptor),
-        mode: 'verify',
-      }),
-    });
-
-    const rawText = await response.text();
-
-    try {
-      // Check for unexpected characters
-      const trimmed = rawText.trim();
-      const jsonStart = trimmed.indexOf('{');
-      const jsonEnd = trimmed.lastIndexOf('}');
-
-      if (jsonStart === -1 || jsonEnd === -1) {
-        throw new Error('Response is not valid JSON object');
-      }
-
-      const jsonString = trimmed.substring(jsonStart, jsonEnd + 1);
-      const result = JSON.parse(jsonString);
-
-      if (!result.success) {
-        return {
-          isMatch: false,
-          message: result.message || 'Face verification failed',
-        };
-      }
-
-      return {
-        isMatch: result.match,
-        message: result.message,
-      };
-    } catch (jsonErr) {
-      console.error('JSON parse error:', rawText);
-      return {
-        isMatch: false,
-        message: 'Invalid response format from server.',
-      };
-    }
-  } catch (err) {
-    console.error('Face verification fetch error:', err);
-    return {
-      isMatch: false,
-      message: 'Network error or server is unreachable.',
-    };
+// Shared utilities: descriptor distance, EAR, etc.
+export function calculateDescriptorDistance(
+  d1: number[],
+  d2: number[]
+): number {
+  if (d1.length !== d2.length) {
+    throw new Error('Descriptor lengths do not match');
   }
+  let sum = 0;
+  for (let i = 0; i < d1.length; i++) {
+    const diff = d1[i] - d2[i];
+    sum += diff * diff;
+  }
+  return Math.sqrt(sum);
+}
+
+export function eyeAspectRatio(eye: { x: number; y: number }[]): number {
+  const euclid = (p1: any, p2: any) => Math.hypot(p1.x - p2.x, p1.y - p2.y);
+  const A = euclid(eye[1], eye[5]);
+  const B = euclid(eye[2], eye[4]);
+  const C = euclid(eye[0], eye[3]);
+  return (A + B) / (2.0 * C);
 }
