@@ -1,116 +1,205 @@
+// app/face-capture/page.tsx
 "use client";
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as faceapi from "face-api.js";
 
+interface Voter {
+  aadhaar: string;
+  voter_id: string;
+}
+
 export default function FaceCapturePage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [processing, setProcessing] = useState<boolean>(false);
-  const [matched, setMatched] = useState<boolean>(false);
-  const [message, setMessage] = useState<string>("");
+  const matcherRef = useRef<faceapi.FaceMatcher | null>(null);
+
+  const [user, setUser] = useState<Voter | null>(null);
+  const [state, setState] = useState<"loading"|"idle"|"verifying"|"verified">("loading");
+  const [msg, setMsg] = useState("Initializing…");
+
   const router = useRouter();
   const otu = useSearchParams()?.get("otu");
-  let faceMatcher: faceapi.FaceMatcher;
 
-  // Preload models and voter reference descriptor silently
+  // Initialization: validate user, load models, fetch descriptor, start camera
   useEffect(() => {
-    const init = async () => {
-      try {
-        // Load all required nets in parallel
-        await Promise.all([
-          faceapi.nets.tinyFaceDetector.loadFromUri("/models"),
-          faceapi.nets.faceLandmark68TinyNet.loadFromUri("/models"),
-          faceapi.nets.faceRecognitionNet.loadFromUri("/models"),
-        ]);
-
-        // Fetch stored descriptor for this voter
-        const res = await fetch(`/api/fetch-descriptor?otu=${otu}`);
-        const { descriptor: refDescArray } = await res.json();
-        const referenceDescriptor = new Float32Array(refDescArray);
-        faceMatcher = new faceapi.FaceMatcher([new faceapi.LabeledFaceDescriptors("voter", [referenceDescriptor])], 0.4);
-
-        // Start video
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          await videoRef.current.play();
-        }
-
-        setLoading(false);
-        detectLoop();
-      } catch (err) {
-        console.error(err);
-        setMessage("Initialization error");
-      }
-    };
-    init();
-
-    return () => {
-      videoRef.current?.srcObject && (videoRef.current.srcObject as MediaStream)
-        .getTracks()
-        .forEach((t) => t.stop());
-    };
-  }, [otu]);
-
-  // Continuous detection
-  const detectLoop = async () => {
-    if (loading) return;
-    const options = new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.6 });
-    const result = await faceapi.detectSingleFace(videoRef.current!, options).withFaceLandmarks(true).withFaceDescriptor();
-
-    if (result) {
-      const bestMatch = faceMatcher.findBestMatch(result.descriptor);
-      drawOverlay(result.detection.box, result.landmarks.positions, bestMatch.label === "voter");
-      setMatched(bestMatch.label === "voter");
-      setMessage(bestMatch.label === "voter" ? "Face matched" : "Face mismatch");
-    } else {
-      clearCanvas();
-      setMessage("No face detected");
-      setMatched(false);
+    if (!otu) {
+      setMsg("Invalid token… redirecting");
+      setTimeout(() => router.push("/authenticate"), 2000);
+      return;
     }
 
-    setTimeout(detectLoop, 150);  // slight delay to reduce CPU
+    (async () => {
+      try {
+        // 1) Validate user via /api/fetch-voter
+        setMsg("Validating user…");
+        const vr = await fetch(`/api/fetch-voter?otu=${encodeURIComponent(otu)}`);
+        if (!vr.ok) {
+          const err = await vr.json().catch(() => ({}));
+          throw new Error(`User validation failed: ${vr.status} ${err.error||err.message||""}`);
+        }
+        const { voter } = await vr.json();
+        setUser(voter);
+
+        // 2) Load tiny models
+        setMsg("Loading face models…");
+        const MODEL_URL = "/models";
+        await Promise.all([
+          faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+          faceapi.nets.faceLandmark68TinyNet.loadFromUri(MODEL_URL),
+          faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
+        ]);
+
+        // 3) Fetch stored descriptor
+        setMsg("Loading reference descriptor…");
+        const dr = await fetch(`/api/fetch-descriptor?otu=${encodeURIComponent(otu)}`);
+        if (!dr.ok) {
+          let detail = "";
+          try {
+            const e = await dr.json();
+            detail = e.error || e.message;
+          } catch {
+            detail = await dr.text();
+          }
+          throw new Error(`Descriptor fetch failed: ${dr.status} ${detail}`);
+        }
+        const { descriptor } = await dr.json();
+        if (!Array.isArray(descriptor) || descriptor.length !== 128) {
+          throw new Error(`Invalid descriptor length: ${descriptor?.length}`);
+        }
+        matcherRef.current = new faceapi.FaceMatcher(
+          [ new faceapi.LabeledFaceDescriptors("you", [ new Float32Array(descriptor) ]) ],
+          0.8
+        );
+
+        // 4) Start camera (once)
+        setMsg("Accessing camera…");
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        const vid = videoRef.current!;
+        vid.srcObject = stream;
+        vid.playsInline = true;
+        await new Promise<void>(r => (vid.onloadedmetadata = () => r()));
+        try { await vid.play(); } catch {}
+
+        // Ready for detection
+        setState("idle");
+        setMsg("Position your face in view…");
+        requestAnimationFrame(detectLoop);
+      } catch (e: any) {
+        console.error(e);
+        setMsg(e.message || "Initialization error");
+      }
+    })();
+
+    return () => {
+      const vid = videoRef.current;
+      if (vid?.srcObject) {
+        (vid.srcObject as MediaStream).getTracks().forEach(t => t.stop());
+      }
+    };
+  }, [otu, router]);
+
+  // Detection & verification loop
+  const detectLoop = async () => {
+    const vid = videoRef.current;
+    const matcher = matcherRef.current;
+    if (!vid || !matcher || state === "verified") return;
+
+    setState("verifying");
+    setMsg("Verifying…");
+
+    try {
+      const opts = new faceapi.TinyFaceDetectorOptions({ inputSize: 128, scoreThreshold: 0.4 });
+      const result = await faceapi
+        .detectSingleFace(vid, opts)
+        .withFaceLandmarks(true)
+        .withFaceDescriptor();
+
+      if (result) {
+        const best = matcher.findBestMatch(result.descriptor);
+        drawBox(result.detection.box, best.label === "you");
+
+        if (best.label === "you" && user) {
+          // Matched!
+          setState("verified");
+          setMsg("✔️ Face verified!");
+
+          // Store descriptor in DB
+          await fetch('/api/face-verification', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              mode: 'store',
+              aadhaar: user.aadhaar,
+              voterId: user.voter_id,
+              faceDescriptor: Array.from(result.descriptor),
+            }),
+          });
+
+          // Save for vote page
+          sessionStorage.setItem('faceDescriptor', JSON.stringify(Array.from(result.descriptor)));
+          sessionStorage.setItem('lastVerification', Date.now().toString());
+
+          // Redirect to vote
+          router.push(`/vote?otu=${encodeURIComponent(otu as string)}`);
+          return;
+        } else {
+          setState("idle");
+          setMsg("❌ Face not recognized");
+        }
+      } else {
+        clearBox();
+        setState("idle");
+        setMsg("No face detected");
+      }
+    } catch (e) {
+      console.error(e);
+      setState("idle");
+      setMsg("Error during detection");
+    }
+
+    requestAnimationFrame(detectLoop);
   };
 
-  const clearCanvas = () => {
+  // Draw / clear bounding box
+  const drawBox = (b: faceapi.Box, ok: boolean) => {
     const ctx = canvasRef.current?.getContext("2d");
-    ctx && ctx.clearRect(0, 0, canvasRef.current!.width, canvasRef.current!.height);
+    if (ctx) {
+      ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+      ctx.strokeStyle = ok ? "#0f0" : "#f00";
+      ctx.lineWidth = 3;
+      ctx.strokeRect(b.x, b.y, b.width, b.height);
+    }
   };
-
-  const drawOverlay = (box: faceapi.Box, points: faceapi.Point[], correct: boolean) => {
+  const clearBox = () => {
     const ctx = canvasRef.current?.getContext("2d");
-    if (!ctx) return;
-    ctx.clearRect(0, 0, canvasRef.current!.width, canvasRef.current!.height);
-    ctx.strokeStyle = correct ? "#0f0" : "#f00";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(box.x, box.y, box.width, box.height);
-    points.forEach(({ x, y }) => {
-      ctx.beginPath(); ctx.arc(x, y, 2, 0, 2 * Math.PI); ctx.fill();
-    });
+    if (ctx) ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
   };
 
-  const handleConfirm = () => {
-    if (matched) router.push(`/vote?otu=${otu}`);
-    else setMessage("Cannot proceed: mismatch");
-  };
+  // Border color by state
+  const borderColor = {
+    loading:   "#f00",
+    idle:      "transparent",
+    verifying: "#ffa500",
+    verified:  "#0f0",
+  }[state];
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-800 p-4">
-      {loading && <div className="loader mb-4" />}
-      <div className="relative w-full max-w-md aspect-video mb-2">
-        <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover rounded-lg" muted />
-        <canvas ref={canvasRef} width={640} height={480} className="absolute inset-0 w-full h-full rounded-lg" />
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-900 p-4">
+      <div
+        className="relative w-full max-w-md aspect-video rounded-lg overflow-hidden"
+        style={{ border: `6px solid ${borderColor}`, transition: "border-color .3s" }}
+      >
+        <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" muted />
+        <canvas
+          ref={canvasRef}
+          width={640}
+          height={480}
+          className="absolute inset-0 w-full h-full pointer-events-none"
+        />
       </div>
-      <p className="text-center text-white mb-4">{message}</p>
-      <button
-        onClick={handleConfirm}
-        disabled={!matched}
-        className={`px-6 py-2 rounded transition ${matched ? 'bg-blue-500 hover:bg-blue-600' : 'bg-gray-600 cursor-not-allowed'}`}>
-        Proceed to Vote
-      </button>
+      <p className="mt-4 text-white">{msg}</p>
     </div>
   );
 }
