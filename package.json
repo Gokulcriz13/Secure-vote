@@ -12,6 +12,7 @@
     "date-fns": "^4.1.0",
     "encoding": "^0.1.13",
     "face-api.js": "0.22.2",
+    "file-type": "^20.5.0",
     "firebase": "^11.6.0",
     "formidable": "^3.5.3",
     "lucide-react": "^0.509.0",
@@ -24,6 +25,7 @@
   },
   "devDependencies": {
     "@types/crypto-js": "^4.2.2",
+    "@types/file-type": "^10.6.0",
     "@types/formidable": "^3.4.5",
     "@types/node": "^20.17.30",
     "@types/react": "^19",

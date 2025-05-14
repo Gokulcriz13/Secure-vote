@@ -1,4 +1,4 @@
-// Shared utilities: descriptor distance, EAR, etc.
+//src/lib/faceutils.ts
 export function calculateDescriptorDistance(
   d1: number[],
   d2: number[]
@@ -20,4 +20,9 @@ export function eyeAspectRatio(eye: { x: number; y: number }[]): number {
   const B = euclid(eye[2], eye[4]);
   const C = euclid(eye[0], eye[3]);
   return (A + B) / (2.0 * C);
+}
+
+export function compareDescriptors(d1: number[], d2: number[]) {
+  const distance = calculateDescriptorDistance(d1, d2);
+  return { distance, match: distance < 0.6 };
 }

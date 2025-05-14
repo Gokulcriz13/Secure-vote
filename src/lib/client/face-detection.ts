@@ -1,3 +1,4 @@
+//src/lib/client/face-detection.ts
 import * as faceapi from 'face-api.js';
 import { calculateDescriptorDistance } from '@/lib/faceutils';
 
@@ -50,3 +51,11 @@ export function getFaceDescriptor(
   if (!stored) return null;
   return new Float32Array(JSON.parse(stored));
 }
+
+export function clearModels() {
+    // Dispose each net to free memory
+    faceapi.nets.tinyFaceDetector.dispose();
+    faceapi.nets.faceLandmark68TinyNet.dispose();
+    faceapi.nets.faceRecognitionNet.dispose();
+    modelsLoaded = false;
+  }

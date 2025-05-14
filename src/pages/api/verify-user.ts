@@ -1,3 +1,4 @@
+//src/pages/api/verify-user.ts
 import { NextApiRequest, NextApiResponse } from 'next';
 import { db } from '@/lib/mysql'; // your MySQL connection
 import { generateOtp } from '@/lib/utils/generateOTP';

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { verifyFace } from "@/lib/faceutils";
+import { verifyFace } from "@/lib/server/face-processing";
 import Image from "next/image";
 
 export default function VotingPage() {
