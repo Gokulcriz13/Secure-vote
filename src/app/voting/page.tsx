@@ -1,3 +1,4 @@
+//src/app/voting/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -44,9 +45,9 @@ export default function VotingPage() {
         const float32Descriptor = new Float32Array(descriptor);
         
         // Verify face with stored descriptor
-        const verificationResult = await verifyFace(data.aadhaar, data.voter_id, float32Descriptor);
+        const verificationResult = await verifyFace(data.aadhaar, data.voter_id, Array.from(float32Descriptor));
         
-        if (!verificationResult.isMatch) {
+        if (!verificationResult.match) {
           throw new Error("Face verification failed. Please try again.");
         }
 

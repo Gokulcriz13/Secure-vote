@@ -1,6 +1,5 @@
 //src/lib/client/face-detection.ts
 import * as faceapi from 'face-api.js';
-import { calculateDescriptorDistance } from '@/lib/faceutils';
 
 let modelsLoaded = false;
 
@@ -8,8 +7,8 @@ export async function loadClientModels(): Promise<void> {
   if (modelsLoaded) return;
   const MODEL_URL = '/models';
   await Promise.all([
-    faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
-    faceapi.nets.faceLandmark68TinyNet.loadFromUri(MODEL_URL),
+    faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
+    faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
     faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
   ]);
   modelsLoaded = true;
@@ -23,10 +22,9 @@ export async function detectFace(
   descriptor: Float32Array;
 }> {
   if (!modelsLoaded) throw new Error('Models not loaded');
-  const options = new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.6 });
   const result = await faceapi
-    .detectSingleFace(video, options)
-    .withFaceLandmarks(true)
+    .detectSingleFace(video)
+    .withFaceLandmarks()
     .withFaceDescriptor();
 
   if (!result) throw new Error('No face detected');
@@ -51,11 +49,3 @@ export function getFaceDescriptor(
   if (!stored) return null;
   return new Float32Array(JSON.parse(stored));
 }
-
-export function clearModels() {
-    // Dispose each net to free memory
-    faceapi.nets.tinyFaceDetector.dispose();
-    faceapi.nets.faceLandmark68TinyNet.dispose();
-    faceapi.nets.faceRecognitionNet.dispose();
-    modelsLoaded = false;
-  }
