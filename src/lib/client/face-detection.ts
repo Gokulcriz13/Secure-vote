@@ -7,8 +7,8 @@ export async function loadClientModels(): Promise<void> {
   if (modelsLoaded) return;
   const MODEL_URL = '/models';
   await Promise.all([
-    faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
-    faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+    faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+    faceapi.nets.faceLandmark68TinyNet.loadFromUri(MODEL_URL),
     faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
   ]);
   modelsLoaded = true;
@@ -23,8 +23,8 @@ export async function detectFace(
 }> {
   if (!modelsLoaded) throw new Error('Models not loaded');
   const result = await faceapi
-    .detectSingleFace(video)
-    .withFaceLandmarks()
+    .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
+    .withFaceLandmarks(true)
     .withFaceDescriptor();
 
   if (!result) throw new Error('No face detected');

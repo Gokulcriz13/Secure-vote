@@ -1,3 +1,4 @@
+//src/app/api/fetch-descriptor/route.ts
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/mysql';
 import { RowDataPacket } from 'mysql2';

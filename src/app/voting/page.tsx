@@ -3,7 +3,6 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { verifyFace } from "@/lib/server/face-processing";
 import Image from "next/image";
 
 export default function VotingPage() {
@@ -24,32 +23,14 @@ export default function VotingPage() {
         }
 
         // Fetch voter details first
-        const response = await fetch(`/api/fetch-voter?otu=${encodeURIComponent(otu)}`);
-        if (!response.ok) {
-          const errorData = await response.json();
+        const response1 = await fetch(`/api/fetch-voter?otu=${encodeURIComponent(otu)}`);
+        if (!response1.ok) {
+          const errorData = await response1.json();
           throw new Error(errorData.error || "Failed to fetch voter details");
         }
 
-        const data = await response.json();
-        setVoterDetails(data);
-
-        // Get stored face descriptor
-        const storedDescriptor = sessionStorage.getItem('faceDescriptor');
-        if (!storedDescriptor) {
-          throw new Error("Face verification data not found. Please complete face verification again.");
-        }
-
-        const descriptor = JSON.parse(storedDescriptor);
-        
-        // Convert descriptor to Float32Array
-        const float32Descriptor = new Float32Array(descriptor);
-        
-        // Verify face with stored descriptor
-        const verificationResult = await verifyFace(data.aadhaar, data.voter_id, Array.from(float32Descriptor));
-        
-        if (!verificationResult.match) {
-          throw new Error("Face verification failed. Please try again.");
-        }
+        const data = await response1.json();
+        setVoterDetails(data);   
 
         setIsLoading(false);
       } catch (error) {

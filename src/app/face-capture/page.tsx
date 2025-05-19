@@ -1,9 +1,15 @@
+//src/app/face-capture/page.tsx
 "use client";
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as faceapi from "face-api.js";
-import {loadClientModels, detectFace, storeFaceDescriptor} from "@/lib/client/face-detection";
+import {
+  loadClientModels,
+  detectFace,
+  storeFaceDescriptor,
+} from "@/lib/client/face-detection";
+import { FaceVerificationPayload } from '@/types/FaceVerification';
 
 interface Voter {
   aadhaar: string;
@@ -11,8 +17,8 @@ interface Voter {
 }
 
 export default function FaceCapturePage() {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const verifiedRef = useRef(false);
   const animationFrameRef = useRef<number | null>(null);
 
@@ -22,7 +28,6 @@ export default function FaceCapturePage() {
   const router = useRouter();
   const otu = useSearchParams()?.get("otu");
 
-  // Step 1: Load everything
   useEffect(() => {
     if (!otu) {
       setMsg("Invalid token… redirecting");
@@ -47,7 +52,7 @@ export default function FaceCapturePage() {
 
         setMsg("Verifying…");
         animationFrameRef.current = requestAnimationFrame(() =>
-          detectLoop(videoRef, canvasRef, voter, otu, router)
+          detectLoop(videoRef, canvasRef, voter, otu, router, verifiedRef)
         );
       } catch (err: any) {
         console.error("Initialization error:", err);
@@ -61,7 +66,13 @@ export default function FaceCapturePage() {
   return (
     <div className="flex flex-col items-center justify-center h-screen bg-gray-900 text-white">
       <div className="relative border-4 border-yellow-500 rounded-lg overflow-hidden">
-        <video ref={videoRef} autoPlay muted playsInline className="w-full h-auto" />
+        <video
+          ref={videoRef}
+          autoPlay
+          muted
+          playsInline
+          className="w-full h-auto"
+        />
         <canvas ref={canvasRef} className="absolute top-0 left-0" />
       </div>
       <p className="mt-6 text-xl font-semibold">{msg}</p>
@@ -69,7 +80,8 @@ export default function FaceCapturePage() {
   );
 }
 
-// Utility: Fetch and validate user
+// --- Utilities ---
+
 async function validateUser(otu: string): Promise<Voter> {
   const res = await fetch(`/api/fetch-voter?otu=${encodeURIComponent(otu)}`);
   if (!res.ok) throw new Error("User validation failed");
@@ -77,7 +89,6 @@ async function validateUser(otu: string): Promise<Voter> {
   return voter;
 }
 
-// Utility: Request facial embeddings from server
 async function prepareFaceData(voter: Voter): Promise<void> {
   const res = await fetch("/api/process-faces", {
     method: "POST",
@@ -87,8 +98,9 @@ async function prepareFaceData(voter: Voter): Promise<void> {
   if (!res.ok) throw new Error("Failed to prepare facial data");
 }
 
-// Utility: Start camera
-async function startCamera(videoRef: React.RefObject<HTMLVideoElement>): Promise<void> {
+async function startCamera(
+  videoRef: React.RefObject<HTMLVideoElement | null>
+): Promise<void> {
   const stream = await navigator.mediaDevices.getUserMedia({ video: true });
   const video = videoRef.current;
   if (!video) throw new Error("Video element not found");
@@ -100,9 +112,8 @@ async function startCamera(videoRef: React.RefObject<HTMLVideoElement>): Promise
   await video.play();
 }
 
-// Utility: Stop camera and animation
 function stopCamera(
-  videoRef: React.RefObject<HTMLVideoElement>,
+  videoRef: React.RefObject<HTMLVideoElement | null>,
   animationFrameRef: React.RefObject<number | null>
 ) {
   if (animationFrameRef.current !== null) {
@@ -115,8 +126,11 @@ function stopCamera(
   }
 }
 
-// Utility: Draw face box
-function drawBox(box: faceapi.Box, canvasRef: React.RefObject<HTMLCanvasElement>, video: HTMLVideoElement) {
+function drawBox(
+  box: faceapi.Box,
+  canvasRef: React.RefObject<HTMLCanvasElement | null>,
+  video: HTMLVideoElement
+) {
   const canvas = canvasRef.current;
   if (!canvas) return;
   const ctx = canvas.getContext("2d");
@@ -131,49 +145,56 @@ function drawBox(box: faceapi.Box, canvasRef: React.RefObject<HTMLCanvasElement>
   ctx.strokeRect(box.x, box.y, box.width, box.height);
 }
 
-// Main Detection Loop
+// --- Main Detection Loop ---
+
 async function detectLoop(
-  videoRef: React.RefObject<HTMLVideoElement>,
-  canvasRef: React.RefObject<HTMLCanvasElement>,
+  videoRef: React.RefObject<HTMLVideoElement | null>,
+  canvasRef: React.RefObject<HTMLCanvasElement | null>,
   voter: Voter,
   otu: string,
-  router: ReturnType<typeof useRouter>
+  router: ReturnType<typeof useRouter>,
+  verifiedRef: React.RefObject<boolean>
 ) {
   const video = videoRef.current;
   if (!video || verifiedRef.current) return;
 
   try {
-    const { box, descriptor } = await detectFace(video);
+    const { box, descriptor: liveDescriptor } = await detectFace(video);
     drawBox(box, canvasRef, video);
 
-    verifiedRef.current = true;
+    const storedDescriptorRes = await fetch(`/api/fetch-descriptor?otu=${otu}`);
+const { descriptor: storedDescriptor } = await storedDescriptorRes.json();
 
-    // Save to sessionStorage
-    storeFaceDescriptor(descriptor);
+const payload = {
+  liveDescriptor: Array.from(liveDescriptor), // descriptor from face-api
+  storedDescriptor: Array.from(storedDescriptor)
+};
 
-    // Verify with backend
-    const res = await fetch("/api/face-verification", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        mode: "verify",
-        faceDescriptor: Array.from(descriptor),
-        aadhaar: voter.aadhaar,
-        voterId: voter.voter_id,
-      }),
-    });
+const res = await fetch('/api/verify-face', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(payload)
+});
 
-    const result = await res.json();
+const result = await res.json();
     console.log("Verification Result:", result);
-
+   
+    if (result.match) {
+      // Save to sessionStorage
+      sessionStorage.setItem("faceDescriptor", JSON.stringify(Array.from(liveDescriptor)));
+    
+      verifiedRef.current = true;
+    
     setTimeout(() => {
       router.push(`/voting?otu=${encodeURIComponent(otu)}`);
     }, 1000);
+  }
   } catch (err) {
     console.error("Face detection/verification failed:", err);
   } finally {
     requestAnimationFrame(() =>
-      detectLoop(videoRef, canvasRef, voter, otu, router)
+      detectLoop(videoRef, canvasRef, voter, otu, router, verifiedRef)
     );
   }
 }
+

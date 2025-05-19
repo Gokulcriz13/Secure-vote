@@ -24,5 +24,5 @@ export function eyeAspectRatio(eye: { x: number; y: number }[]): number {
 
 export function compareDescriptors(d1: number[], d2: number[]) {
   const distance = calculateDescriptorDistance(d1, d2);
-  return { distance, match: distance < 0.6 };
+  return { distance, match: distance < 0.7 };
 }

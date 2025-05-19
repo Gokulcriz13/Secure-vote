@@ -1,0 +1,12 @@
+# anomaly.yaml
+
+train: C:/Users/gokul/anomaly_dataset/train/images
+val: C:/Users/gokul/anomaly_dataset/val/images
+
+nc: 5
+names:
+  - mobile_phone
+  - camera
+  - mirror
+  - extra_person
+  - multiple_faces
