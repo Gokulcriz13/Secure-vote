@@ -11,6 +11,7 @@ export default function VoterVerificationPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    
     const res = await fetch("/api/verify-user", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
