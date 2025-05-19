@@ -68,7 +68,7 @@ export default function LandingPage() {
 
               <p className="text-gray-700 text-lg max-w-2xl">
                 Witness the transformation of democracy. <br />
-                Secure, transparent, and accessible — your vote is your power!
+                Secure, transparent, and accessible - your vote is your power!
               </p>
 
               <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">

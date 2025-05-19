@@ -1,130 +1,51 @@
+//src/lib/client/face-detection.ts
 import * as faceapi from 'face-api.js';
 
-export type FaceDetection = {
-  detection: {
-    score: number;
-    box: { x: number; y: number; width: number; height: number };
-  };
-  landmarks: { positions: Array<{ x: number; y: number }> };
-  descriptor: Float32Array;
-  expressions?: { [key: string]: number };
-};
-
-let faceapi: any = null;
 let modelsLoaded = false;
-let lastHeadPosition: { x: number; y: number } | null = null;
-let headMovementDetected = false;
 
-export async function loadClientModels() {
+export async function loadClientModels(): Promise<void> {
   if (modelsLoaded) return;
-
-  try {
-    if (!faceapi) {
-      const faceApiModule = await import('face-api.js');
-      faceapi = faceApiModule;
-    }
-
-    const MODEL_URL = '/models';
-
-    await Promise.all([
-      faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
-      faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-      faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
-      faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL), // ✅ Required for withFaceExpressions()
-    ]);
-
-    modelsLoaded = true;
-    console.log('✅ Face detection models loaded successfully');
-  } catch (error) {
-    console.error('❌ Error loading face detection models:', error);
-    throw new Error('Failed to load face detection models. Please check your internet connection and try again.');
-  }
+  const MODEL_URL = '/models';
+  await Promise.all([
+    faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
+    faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+    faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
+  ]);
+  modelsLoaded = true;
 }
 
-export async function detectFace(video: HTMLVideoElement, minConfidence = 0.5): Promise<FaceDetection> {
-  if (!faceapi || !modelsLoaded) {
-    throw new Error('Face API not initialized. Call loadClientModels first.');
-  }
+export async function detectFace(
+  video: HTMLVideoElement
+): Promise<{
+  box: faceapi.Box;
+  landmarks: faceapi.Point[];
+  descriptor: Float32Array;
+}> {
+  if (!modelsLoaded) throw new Error('Models not loaded');
+  const result = await faceapi
+    .detectSingleFace(video)
+    .withFaceLandmarks()
+    .withFaceDescriptor();
 
-  try {
-    // Detect face with lower confidence threshold for better detection
-    const detection = await faceapi
-      .detectSingleFace(video, new faceapi.SsdMobilenetv1Options({ minConfidence }))
-      .withFaceLandmarks()
-      .withFaceDescriptor()
-      .withFaceExpressions();
-
-    if (!detection) {
-      throw new Error('No face detected in frame. Please ensure your face is clearly visible.');
-    }
-
-    // Log detection box and expressions for debugging
-    console.log('Detection Box:', detection.detection.box);
-    console.log('Expressions:', detection.expressions);
-
-    // Head movement detection
-    const currentHeadPosition = {
-      x: detection.detection.box.x + detection.detection.box.width / 2,
-      y: detection.detection.box.y + detection.detection.box.height / 2
-    };
-
-    if (lastHeadPosition) {
-      const movement = Math.sqrt(
-        Math.pow(currentHeadPosition.x - lastHeadPosition.x, 2) +
-        Math.pow(currentHeadPosition.y - lastHeadPosition.y, 2)
-      );
-
-      console.log('Head movement distance:', movement);
-
-      if (movement > 10) { // Reduced threshold for head movement detection
-        headMovementDetected = true;
-        console.log('✅ Head movement detected');
-      }
-    }
-
-    lastHeadPosition = currentHeadPosition;
-
-    return {
-      ...detection,
-      expressions: detection.expressions
-    };
-  } catch (error) {
-    console.error('Error during face detection:', error);
-    throw error instanceof Error ? error : new Error('Face detection failed. Please try again.');
-  }
+  if (!result) throw new Error('No face detected');
+  return {
+    box: result.detection.box,
+    landmarks: result.landmarks.positions,
+    descriptor: result.descriptor,
+  };
 }
 
-export function storeFaceDescriptor(descriptor: Float32Array) {
-  try {
-    sessionStorage.setItem('faceDescriptor', JSON.stringify(Array.from(descriptor)));
-    return true;
-  } catch (error) {
-    console.error('Error storing face descriptor:', error);
-    return false;
-  }
+export function storeFaceDescriptor(
+  descriptor: Float32Array,
+  key = 'faceDescriptor'
+): void {
+  sessionStorage.setItem(key, JSON.stringify(Array.from(descriptor)));
 }
 
-export function getFaceDescriptor(): Float32Array | null {
-  try {
-    const stored = sessionStorage.getItem('faceDescriptor');
-    if (!stored) return null;
-
-    const array = JSON.parse(stored);
-    return new Float32Array(array);
-  } catch (error) {
-    console.error('Error retrieving face descriptor:', error);
-    return null;
-  }
-}
-
-export function checkLiveness(): boolean {
-  const isLive = headMovementDetected;
-
-  console.log('Liveness Check => Head Movement:', headMovementDetected);
-
-  // Reset after check
-  headMovementDetected = false;
-  lastHeadPosition = null;
-
-  return isLive;
+export function getFaceDescriptor(
+  key = 'faceDescriptor'
+): Float32Array | null {
+  const stored = sessionStorage.getItem(key);
+  if (!stored) return null;
+  return new Float32Array(JSON.parse(stored));
 }
